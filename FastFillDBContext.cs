@@ -28,10 +28,8 @@ namespace FastFill_API
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
-            {
-                //Data Source=localhost,8765;Initial Catalog=CloiDB;Persist Security Info=True;User ID=sa;Password=Techno$o;
-                optionsBuilder.UseSqlServer("Server=192.99.16.179,8765;Database=FastFill;User Id=sa;Password=Techno$o;");
-                //optionsBuilder.UseSqlServer("Server=.\\;Database=FastFillDB;User ID=sa;Password=Techno$o;");                               
+            {                              
+                optionsBuilder.UseSqlServer("Server=.\\;Database=FastFill;User ID=sa;Password=Techno$o;");                               
             }
         }
 
