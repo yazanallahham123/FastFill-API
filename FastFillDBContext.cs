@@ -24,12 +24,19 @@ namespace FastFill_API
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<UserRole> UserRoles { get; set; }
         public virtual DbSet<Wallet> Wallets { get; set; }
-
+        public virtual DbSet<FavoriteCompany> FavoriteCompanies { get; set; }
+        public virtual DbSet<FavoriteCompanyBranch> FavoriteCompaniesBranches { get; set; }
+        public virtual DbSet<FrequentlyVisitedCompany> FrequentlyVisitedCompanies { get; set; }
+        public virtual DbSet<FrequentlyVisitedCompanyBranch> FrequentlyVisitedCompaniesBranches { get; set; }
+        public virtual DbSet<Notification> Notifications { get; set; }
+        public virtual DbSet<PaymentTransaction> PaymentTransactions { get; set; }
+        public virtual DbSet<UserCredit> UserCredits { get; set; }
+        public virtual DbSet<BankCard> BankCards { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
             {                              
-                optionsBuilder.UseSqlServer("Server=.\\;Database=FastFill;User ID=sa;Password=Techno$o;");                               
+                optionsBuilder.UseSqlServer("Server=192.99.16.179,8765\\;Database=FastFill;User ID=sa;Password=Techno$o;");                               
             }
         }
 
@@ -50,6 +57,118 @@ namespace FastFill_API
                 entity.Property(e => e.LogoUrl).HasColumnName("LogoURL");
 
                 entity.Property(e => e.Longitude).HasColumnType("decimal(18, 0)");
+            });
+
+
+            modelBuilder.Entity<PaymentTransaction>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.PaymentTransactions)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_PaymentTransactions_Users");
+
+                entity.HasOne(d => d.Company)
+                    .WithMany(p => p.PaymentTransactions)
+                    .HasForeignKey(d => d.CompanyId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_PaymentTransactions_Companies");
+
+
+            });
+
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.Notifications)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Notifications_Users");
+
+                entity.HasOne(d => d.Company)
+                    .WithMany(p => p.Notifications)
+                    .HasForeignKey(d => d.CompanyId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Notifications_Companies");
+            });
+
+            modelBuilder.Entity<FavoriteCompanyBranch>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.FavoriteCompaniesBranches)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FavoriteCompaniesBranches_Users");
+
+                entity.HasOne(d => d.CompanyBranch)
+                    .WithMany(p => p.FavoriteCompaniesBranches)
+                    .HasForeignKey(d => d.CompanyBranchId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FavoriteCompaniesBranches_CompanyBranches");
+            });
+
+            modelBuilder.Entity<FrequentlyVisitedCompanyBranch>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.FrequentlyVisitedCompaniesBranches)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FrequentlyVisitedCompaniesBranches_Users");
+
+                entity.HasOne(d => d.CompanyBranch)
+                    .WithMany(p => p.FrequentlyVisitedCompaniesBranches)
+                    .HasForeignKey(d => d.CompanyBranchId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FrequentlyVisitedCompaniesBranches_CompanyBranches");
+            });
+
+            modelBuilder.Entity<FrequentlyVisitedCompany>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.FrequentlyVisitedCompanies)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FrequentlyVisitedCompanies_Users");
+
+                entity.HasOne(d => d.Company)
+                    .WithMany(p => p.FrequentlyVisitedCompanies)
+                    .HasForeignKey(d => d.CompanyId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FrequentlyVisitedCompanies_Companies");
+            });
+
+
+            modelBuilder.Entity<FavoriteCompany>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.FavoriteCompanies)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FavoriteCompanies_Users");
+
+                entity.HasOne(d => d.Company)
+                    .WithMany(p => p.FavoriteCompanies)
+                    .HasForeignKey(d => d.CompanyId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_FavoriteCompanies_Companies");
+            });
+
+            modelBuilder.Entity<UserCredit>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.UserCredits)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_UserCredits_Users");
+            });
+
+            modelBuilder.Entity<BankCard>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.BankCards)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_BankCards_Users");
             });
 
             modelBuilder.Entity<CompanyBranch>(entity =>
@@ -141,6 +260,12 @@ namespace FastFill_API
                     .HasForeignKey(d => d.RoleId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK_Users_UserRoles");
+
+                entity.HasOne(d => d.Company)
+                    .WithMany(p => p.Users)
+                    .HasForeignKey(d => d.CompanyId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Users_UserCompanies");
             });
 
             modelBuilder.Entity<UserRole>(entity =>

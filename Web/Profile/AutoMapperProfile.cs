@@ -1,4 +1,4 @@
-﻿using FastFill_API.Model;
+﻿
 using FastFill_API.Web.Dto;
 using System;
 using System.Collections.Generic;
@@ -14,6 +14,13 @@ namespace FastFill_API.Web.Profile
             //User Mapper
             CreateMap<User, ChangePasswordDto>().ReverseMap();
             CreateMap<User, UserDto>().ReverseMap();
+            CreateMap<UserCredit, TopUpCreditDto>().ReverseMap();
+            CreateMap<User, UpdateUserDto>().ReverseMap();
+            CreateMap<CompanyBranch, UpdateCompanyBranchDto>().ReverseMap();
+            CreateMap<Company, UpdateCompanyDto>().ReverseMap();
+            CreateMap<Notification, NotificationDto>().ReverseMap();
+            CreateMap<PaymentTransaction, PaymentTransactionDto>().ReverseMap();
+            CreateMap<BankCard, AddEditBankCardDto>().ReverseMap();
         }
     }
 }

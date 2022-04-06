@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.IdentityModel.Tokens;
 using FastFill_API;
 using FastFill_API.Web.Utils;
-using FastFill_API.Model;
+
 using FastFill_API.Web.Dto;
 
 namespace FastFill_API.Web.Services
@@ -27,7 +27,7 @@ namespace FastFill_API.Web.Services
             };
             var token = new JwtSecurityToken(
                 claims: claims,
-                expires: DateTime.Now.AddHours(Double.Parse(Startup.Configuration.GetSection("Jwt")["ExpiredAfterInHour"].ToString())),
+                expires: DateTime.UtcNow.AddHours(Double.Parse(Startup.Configuration.GetSection("Jwt")["ExpiredAfterInHours"].ToString())),
                 signingCredentials: credentials
             );
             return new JwtSecurityTokenHandler().WriteToken(token);

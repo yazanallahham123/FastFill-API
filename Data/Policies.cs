@@ -11,6 +11,8 @@ namespace FastFill_API.Data
         public const string Admin = "1";
         public const string Support = "2";
         public const string User = "3";
+        public const string Company = "4";
+        public const string Sybertech = "100";
 
         public static AuthorizationPolicy AdminPolicy()
         {
@@ -26,5 +28,15 @@ namespace FastFill_API.Data
         {
             return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(User).Build();
         }
+        public static AuthorizationPolicy CompanyPolicy()
+        {
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(Company).Build();
+        }
+
+        public static AuthorizationPolicy SyberTechPolicy()
+        {
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(Sybertech).Build();
+        }
+
     }
 }

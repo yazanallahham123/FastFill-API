@@ -9,6 +9,8 @@ namespace FastFill_API.Web.Utils
     {
         Admin = 1,
         Support = 2,
-        User = 3
+        User = 3,
+        Company = 4,
+        Sybertech = 100
     }
 }

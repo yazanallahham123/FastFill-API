@@ -12,7 +12,7 @@ namespace FastFill_API.Web.Dto
         [Required(AllowEmptyStrings = false, ErrorMessage = LoginErrorMessages.PASSWORD_REQUIRED)]
         public string password { get; set; }
 
-        [Required(AllowEmptyStrings = false, ErrorMessage = LoginErrorMessages.PASSWORD_REQUIRED)]
+        [Required(AllowEmptyStrings = false, ErrorMessage = LoginErrorMessages.MOBILE_NUMBER_REQUIRED)]
         public string mobileNumber { get; set; }
     }
 }

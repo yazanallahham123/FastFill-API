@@ -1,5 +1,5 @@
 ﻿using FastFill_API.Interfaces;
-using FastFill_API.Model;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +11,7 @@ namespace FastFill_API.Repositories
     {
         private readonly FastFillDBContext _context;
         private IUserRepository _userRepository;
+        private ICompanyRepository _companyRepository;
 
 
         public PublicRepository(FastFillDBContext context)
@@ -23,6 +24,14 @@ namespace FastFill_API.Repositories
             get
             {
                 return _userRepository ??= new UserRepository(_context);
+            }
+        }
+
+        public ICompanyRepository GetCompanyRepository
+        {
+            get
+            {
+                return _companyRepository ??= new CompanyRepository(_context);
             }
         }
 

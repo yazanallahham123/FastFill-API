@@ -1,7 +1,7 @@
 using AutoMapper;
 using FastFill_API.Data;
 using FastFill_API.Interfaces;
-using FastFill_API.Model;
+
 using FastFill_API.Repositories;
 using FastFill_API.Web.Profile;
 using FastFill_API.Web.Services;
@@ -64,7 +64,11 @@ namespace FastFill_API
             });
 
             // for routing
-            services.AddControllers();
+            services.AddControllers()
+            .AddNewtonsoftJson(options =>
+                options.SerializerSettings.ReferenceLoopHandling =
+                Newtonsoft.Json.ReferenceLoopHandling.Ignore
+            );
 
             // for connection of DB
             services.AddDbContext<FastFillDBContext>(
@@ -110,6 +114,7 @@ namespace FastFill_API
             // Inject services
             services.AddScoped<UserServices>();
             services.AddScoped<SecurityServices>();
+            services.AddScoped<CompanyServices>();
 
             // Mapper setting
             IMapper mapper =
@@ -175,6 +180,8 @@ namespace FastFill_API
                 config.AddPolicy(Policies.Admin, Policies.AdminPolicy());
                 config.AddPolicy(Policies.Support, Policies.SupportPolicy());
                 config.AddPolicy(Policies.User, Policies.UserPolicy());
+                config.AddPolicy(Policies.Company, Policies.CompanyPolicy());
+                config.AddPolicy(Policies.Sybertech, Policies.SyberTechPolicy());
             });
 
             services.AddControllersWithViews().AddNewtonsoftJson(options =>
@@ -219,7 +226,12 @@ namespace FastFill_API
             app.UseCors("_myAllowSpecificOrigins");
             app.UseAuthorization();
 
-            app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
+            app.UseEndpoints(endpoints => { 
+                
+                endpoints.MapControllers();                
+            
+            });
+
             await InitializeDatabase.Run(app);
         }
     }

@@ -14,6 +14,7 @@ namespace FastFill_API.Web.Utils.Messages
         public const String NOT_FOUND = "Not found.";
         public const String ERROR_UPDATE = "An error occurred while updating the data, please try again.";
         public const String PUSH_EMPTY_VALUE = "You cannot push null values.";
+        public const String NOT_LOGGEDIN = "You are not logged in.";
         public const String PUSH_DIFFERENT_ID = "You cannot push different Id.";
         public const String REQUEST_REGISTER_NEW_COMPANY = "Your request has been added and we will respond to you as soon as possible.";
         public const String INVALID_PAGE_NUMBER = "Page must be bigger than 0.";

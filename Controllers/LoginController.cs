@@ -1,5 +1,4 @@
 ﻿using AutoMapper;
-using FastFill_API.Model;
 using FastFill_API.Web.Dto;
 using FastFill_API.Web.Services;
 using FastFill_API.Web.Utils.Messages;
@@ -13,7 +12,7 @@ using System.Threading.Tasks;
 namespace FastFill_API.Controllers
 {
     [Route("/api/[controller]")]
-    public class LoginController : ControllerBase
+    public class LoginController : Controller
     {
         private readonly IMapper _mapper;
         private readonly SecurityServices _securityServices;

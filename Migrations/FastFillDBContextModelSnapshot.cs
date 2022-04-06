@@ -20,6 +20,31 @@ namespace FastFill_API.Migrations
                 .HasAnnotation("ProductVersion", "5.0.13")
                 .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
 
+            modelBuilder.Entity("FastFill_API.BankCard", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("BankCards");
+                });
+
             modelBuilder.Entity("FastFill_API.Company", b =>
                 {
                     b.Property<int>("Id")
@@ -128,6 +153,203 @@ namespace FastFill_API.Migrations
                     b.ToTable("CompanyBranches");
                 });
 
+            modelBuilder.Entity("FastFill_API.FavoriteCompany", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("FavoriteCompanies");
+                });
+
+            modelBuilder.Entity("FastFill_API.FavoriteCompanyBranch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<int>("CompanyBranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyBranchId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("FavoriteCompaniesBranches");
+                });
+
+            modelBuilder.Entity("FastFill_API.FrequentlyVisitedCompany", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("VisitDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("FrequentlyVisitedCompanies");
+                });
+
+            modelBuilder.Entity("FastFill_API.FrequentlyVisitedCompanyBranch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<int>("CompanyBranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("VisitDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyBranchId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("FrequentlyVisitedCompaniesBranches");
+                });
+
+            modelBuilder.Entity("FastFill_API.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Date")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageURL")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Liters")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Material")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Price")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Time")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TypeId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("FastFill_API.PaymentTransaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<double>("Amount")
+                        .HasColumnType("float");
+
+                    b.Property<int?>("CompanyBranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("Fastfill")
+                        .HasColumnType("float");
+
+                    b.Property<int>("FuelTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Status")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyBranchId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PaymentTransactions");
+                });
+
             modelBuilder.Entity("FastFill_API.Transaction", b =>
                 {
                     b.Property<int>("Id")
@@ -197,15 +419,24 @@ namespace FastFill_API.Migrations
                         .HasColumnType("int")
                         .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
 
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("int");
+
                     b.Property<bool?>("Disabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValueSql("((0))");
 
+                    b.Property<string>("FirebaseToken")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ImageURL")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -239,9 +470,38 @@ namespace FastFill_API.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
                     b.HasIndex("RoleId");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("FastFill_API.UserCredit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<double>("Amount")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TransactionId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserCredits");
                 });
 
             modelBuilder.Entity("FastFill_API.UserRole", b =>
@@ -293,6 +553,17 @@ namespace FastFill_API.Migrations
                     b.ToTable("Wallets");
                 });
 
+            modelBuilder.Entity("FastFill_API.BankCard", b =>
+                {
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("BankCards")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_BankCards_Users")
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FastFill_API.CompanyBranch", b =>
                 {
                     b.HasOne("FastFill_API.Company", "Company")
@@ -302,6 +573,116 @@ namespace FastFill_API.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("FastFill_API.FavoriteCompany", b =>
+                {
+                    b.HasOne("FastFill_API.Company", "Company")
+                        .WithMany("FavoriteCompanies")
+                        .HasForeignKey("CompanyId")
+                        .HasConstraintName("FK_FavoriteCompanies_Companies")
+                        .IsRequired();
+
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("FavoriteCompanies")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_FavoriteCompanies_Users")
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FastFill_API.FavoriteCompanyBranch", b =>
+                {
+                    b.HasOne("FastFill_API.CompanyBranch", "CompanyBranch")
+                        .WithMany("FavoriteCompaniesBranches")
+                        .HasForeignKey("CompanyBranchId")
+                        .HasConstraintName("FK_FavoriteCompaniesBranches_CompanyBranches")
+                        .IsRequired();
+
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("FavoriteCompaniesBranches")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_FavoriteCompaniesBranches_Users")
+                        .IsRequired();
+
+                    b.Navigation("CompanyBranch");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FastFill_API.FrequentlyVisitedCompany", b =>
+                {
+                    b.HasOne("FastFill_API.Company", "Company")
+                        .WithMany("FrequentlyVisitedCompanies")
+                        .HasForeignKey("CompanyId")
+                        .HasConstraintName("FK_FrequentlyVisitedCompanies_Companies")
+                        .IsRequired();
+
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("FrequentlyVisitedCompanies")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_FrequentlyVisitedCompanies_Users")
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FastFill_API.FrequentlyVisitedCompanyBranch", b =>
+                {
+                    b.HasOne("FastFill_API.CompanyBranch", "CompanyBranch")
+                        .WithMany("FrequentlyVisitedCompaniesBranches")
+                        .HasForeignKey("CompanyBranchId")
+                        .HasConstraintName("FK_FrequentlyVisitedCompaniesBranches_CompanyBranches")
+                        .IsRequired();
+
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("FrequentlyVisitedCompaniesBranches")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_FrequentlyVisitedCompaniesBranches_Users")
+                        .IsRequired();
+
+                    b.Navigation("CompanyBranch");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FastFill_API.Notification", b =>
+                {
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_Notifications_Users")
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FastFill_API.PaymentTransaction", b =>
+                {
+                    b.HasOne("FastFill_API.CompanyBranch", null)
+                        .WithMany("PaymentTransactions")
+                        .HasForeignKey("CompanyBranchId");
+
+                    b.HasOne("FastFill_API.Company", "Company")
+                        .WithMany("PaymentTransactions")
+                        .HasForeignKey("CompanyId")
+                        .HasConstraintName("FK_PaymentTransactions_Companies")
+                        .IsRequired();
+
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("PaymentTransactions")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_PaymentTransactions_Users")
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FastFill_API.Transaction", b =>
@@ -334,13 +715,31 @@ namespace FastFill_API.Migrations
 
             modelBuilder.Entity("FastFill_API.User", b =>
                 {
+                    b.HasOne("FastFill_API.Company", "Company")
+                        .WithMany("Users")
+                        .HasForeignKey("CompanyId")
+                        .HasConstraintName("FK_Users_UserCompanies");
+
                     b.HasOne("FastFill_API.UserRole", "Role")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
                         .HasConstraintName("FK_Users_UserRoles")
                         .IsRequired();
 
+                    b.Navigation("Company");
+
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("FastFill_API.UserCredit", b =>
+                {
+                    b.HasOne("FastFill_API.User", "User")
+                        .WithMany("UserCredits")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_UserCredits_Users")
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FastFill_API.Wallet", b =>
@@ -357,6 +756,23 @@ namespace FastFill_API.Migrations
             modelBuilder.Entity("FastFill_API.Company", b =>
                 {
                     b.Navigation("CompanyBranches");
+
+                    b.Navigation("FavoriteCompanies");
+
+                    b.Navigation("FrequentlyVisitedCompanies");
+
+                    b.Navigation("PaymentTransactions");
+
+                    b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("FastFill_API.CompanyBranch", b =>
+                {
+                    b.Navigation("FavoriteCompaniesBranches");
+
+                    b.Navigation("FrequentlyVisitedCompaniesBranches");
+
+                    b.Navigation("PaymentTransactions");
                 });
 
             modelBuilder.Entity("FastFill_API.TransactionType", b =>
@@ -366,6 +782,22 @@ namespace FastFill_API.Migrations
 
             modelBuilder.Entity("FastFill_API.User", b =>
                 {
+                    b.Navigation("BankCards");
+
+                    b.Navigation("FavoriteCompanies");
+
+                    b.Navigation("FavoriteCompaniesBranches");
+
+                    b.Navigation("FrequentlyVisitedCompanies");
+
+                    b.Navigation("FrequentlyVisitedCompaniesBranches");
+
+                    b.Navigation("Notifications");
+
+                    b.Navigation("PaymentTransactions");
+
+                    b.Navigation("UserCredits");
+
                     b.Navigation("Wallets");
                 });
 

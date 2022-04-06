@@ -8,5 +8,7 @@ namespace FastFill_API.Interfaces
     public interface IPublicRepository
     {
         IUserRepository GetUserRepository { get; }
+
+        ICompanyRepository GetCompanyRepository { get; }
     }
 }
