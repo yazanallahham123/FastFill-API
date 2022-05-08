@@ -756,11 +756,11 @@ namespace FastFill_API.Controllers
         [Authorize(Policy = Policies.Company)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetCompanyPaymentTransactions(int page = 1, int pageSize = 10)
+        public async Task<IActionResult> GetCompanyPaymentTransactions(bool filterByDate, DateTime filterFromDate, DateTime filterToDate,  int page = 1, int pageSize = 10)
         {
             int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
             PaginationInfo paginationInfo = new PaginationInfo();
-            IEnumerable<PaymentTransaction> companyPaymentTransactions = await _companyServices.GetCompanyPaymentTransactions(page, pageSize, paginationInfo, userId);
+            IEnumerable<PaymentTransaction> companyPaymentTransactions = await _companyServices.GetCompanyPaymentTransactions(page, pageSize, paginationInfo, userId, filterByDate, filterFromDate, filterToDate);
 
             var response = new
             {

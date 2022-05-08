@@ -4,14 +4,16 @@ using FastFill_API;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace FastFill_API.Migrations
 {
     [DbContext(typeof(FastFillDBContext))]
-    partial class FastFillDBContextModelSnapshot : ModelSnapshot
+    [Migration("20220504082820_AddUserIdAndDateToErrorsLog")]
+    partial class AddUserIdAndDateToErrorsLog
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -289,9 +291,6 @@ namespace FastFill_API.Migrations
 
                     b.Property<string>("Address")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool?>("Cleared")
-                        .HasColumnType("bit");
 
                     b.Property<int?>("CompanyId")
                         .HasColumnType("int");

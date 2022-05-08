@@ -51,6 +51,6 @@ namespace FastFill_API.Interfaces
         public Task<bool> AddUserToCompany(int userId, int companyId);
         public Task<bool> RemoveUserFromCompany(int userId, int companyId);
 
-        public Task<List<PaymentTransaction>> GetCompanyTransactions(int? companyId);
+        public Task<List<PaymentTransaction>> GetCompanyTransactions(int? companyId, bool filterByDate, DateTime filterFromDate, DateTime filterToDate);
     }
 }

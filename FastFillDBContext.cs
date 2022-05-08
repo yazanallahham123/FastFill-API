@@ -32,11 +32,15 @@ namespace FastFill_API
         public virtual DbSet<PaymentTransaction> PaymentTransactions { get; set; }
         public virtual DbSet<UserCredit> UserCredits { get; set; }
         public virtual DbSet<BankCard> BankCards { get; set; }
+        public virtual DbSet<UserRefillTransaction> UserRefillTransactions { get; set; }
+        public virtual DbSet<ErrorLog> ErrorLogs { get; set; }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
-            {                              
-                optionsBuilder.UseSqlServer("Server=192.99.16.179,8765\\;Database=FastFill;User ID=sa;Password=Techno$o;");                               
+            {
+                string connectionString = Startup.Configuration.GetSection("Connection")["ConnectionString"].ToString();
+                optionsBuilder.UseSqlServer(connectionString);                               
             }
         }
 
@@ -151,6 +155,15 @@ namespace FastFill_API
                     .HasForeignKey(d => d.CompanyId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK_FavoriteCompanies_Companies");
+            });
+
+            modelBuilder.Entity<UserRefillTransaction>(entity =>
+            {
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.UserRefillTransactions)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_UserRefillTransactions_Users");
             });
 
             modelBuilder.Entity<UserCredit>(entity =>

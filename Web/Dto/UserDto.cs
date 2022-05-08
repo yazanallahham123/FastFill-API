@@ -13,5 +13,6 @@ namespace FastFill_API.Web.Dto
         public string Password { get; set; }
         public string MobileNumber { get; set; }
 
+        public int? Language { get; set; }
     }
 }

@@ -56,11 +56,15 @@ namespace FastFill_API.Controllers
             }
 
             User user = await _userServices.GetByMobileNumber(login.mobileNumber);
-
+            
             if (user == null)
             {
                 return NotFound(ResponseMessages.NOT_FOUND);
             }
+
+            user.Language = login.language;
+
+            await _userServices.UpdateUserLanguage(user.Id, login.language);
 
             if (!_securityServices.VerifyPassword(login.password, user.StoredSalt, user.Password))
             {

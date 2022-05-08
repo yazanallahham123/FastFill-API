@@ -13,6 +13,8 @@ using FastFill_API.Web.Dto;
 using FastFill_API.Web.Utils.Messages;
 using System.Security.Claims;
 using FastFill_API.Web;
+using System.Text;
+using System.IO;
 
 namespace FastFill_API.Controllers
 {
@@ -631,11 +633,6 @@ namespace FastFill_API.Controllers
                 return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
             }
 
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
-            }
-
             int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
             if (notification.UserId != currentUserId)
             {
@@ -643,6 +640,7 @@ namespace FastFill_API.Controllers
             }
 
             Notification mappedNotification = _mapper.Map<Notification>(notification);
+            mappedNotification.Cleared = false;
 
             bool res = await _userServices.AddNotification(mappedNotification);
 
@@ -691,16 +689,26 @@ namespace FastFill_API.Controllers
             }
 
             int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            if (paymentTransaction.UserId != currentUserId)
+            double balance = await _userServices.getUserBalance(currentUserId);
+            if (balance >= paymentTransaction.Amount + paymentTransaction.Fastfill)
             {
-                return BadRequest(ResponseMessages.NOT_LOGGEDIN);
+                if (paymentTransaction.UserId != currentUserId)
+                {
+                    return BadRequest(ResponseMessages.NOT_LOGGEDIN);
+                }
+
+                PaymentTransaction mappedPaymentTransaction = _mapper.Map<PaymentTransaction>(paymentTransaction);
+
+                bool res = await _userServices.AddPaymentTransaction(mappedPaymentTransaction);
+                if (res)
+                {
+                    await _userServices.sendTransactionNotificationToCompany(mappedPaymentTransaction.CompanyId, mappedPaymentTransaction);
+                }
+                return Ok(res);
             }
-
-            PaymentTransaction mappedPaymentTransactio  = _mapper.Map<PaymentTransaction>(paymentTransaction);
-
-            bool res = await _userServices.AddPaymentTransaction(mappedPaymentTransactio);
-
-            return Ok(res);
+            else
+                return Ok(false);
+            
         }
 
 
@@ -830,6 +838,9 @@ namespace FastFill_API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Inquiry(string mobileNumber)
         {
+            _userServices.Log("Inquiry");
+            _userServices.Log(mobileNumber);
+
             if ((mobileNumber == null) || (mobileNumber.Trim() == ""))
             {
                 return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
@@ -873,59 +884,92 @@ namespace FastFill_API.Controllers
 
         // POST: api/user
         [HttpPost("Credit")]
-        [Authorize(Policy = Policies.Sybertech)]
+        //[Authorize(Policy = Policies.Sybertech)]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> TopUpCredit([FromBody] TopUpCreditDto creditDto)
         {
-            if (creditDto == null)
+            try
             {
-                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
-            }
-
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
-            }
-
-            User user = await _userServices.GetByMobileNumber(creditDto.mobileNumber);
-
-            if (user == null)
-            {
-                var failedResponse = new
+                _userServices.Log("Credit");
+                if (creditDto != null)
                 {
-                    Response = "",
-                    ResponseCode = "1",
-                    ResponseMessage = ResponseMessages.NOT_FOUND,
-                };
-                return Ok(failedResponse);
-            }
-            else
-            {
-                UserCredit f_us = _mapper.Map<UserCredit>(creditDto);
-                f_us.UserId = user.Id;
-                f_us.User = user;
-                UserCredit uc = await _userServices.TopUpUserCredit(f_us);
-                if (uc == null)
+                    _userServices.Log(creditDto.mobileNumber);
+                    _userServices.Log(creditDto.transactionId);
+                    _userServices.Log(creditDto.amount.ToString());
+                }
+                else
+                    _userServices.Log("Credit dto has nothing to do");
+                if (creditDto == null)
+                {
+                    return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
+                }
+
+                User user = await _userServices.GetByMobileNumber(creditDto.mobileNumber);
+
+                if (user == null)
                 {
                     var failedResponse = new
                     {
                         Response = "",
-                        ResponseCode = "2",
-                        ResponseMessage = ResponseMessages.ERROR_UPDATE,
+                        ResponseCode = "1",
+                        ResponseMessage = ResponseMessages.NOT_FOUND,
                     };
                     return Ok(failedResponse);
                 }
                 else
                 {
-                    var successResponse = new
+                    UserCredit f_us = _mapper.Map<UserCredit>(creditDto);
+                    f_us.Date = DateTime.Now;
+                    f_us.UserId = user.Id;
+                    f_us.User = user;
+                    UserCredit uc = await _userServices.TopUpUserCredit(f_us);
+                    if (uc == null)
                     {
-                        Response = uc,
-                        ResponseCode = "0",
-                        ResponseMessage = "",
-                    };
-                    return Ok(successResponse);
+                        var failedResponse = new
+                        {
+                            Response = "",
+                            ResponseCode = "2",
+                            ResponseMessage = ResponseMessages.ERROR_UPDATE,
+                        };
+                        return Ok(failedResponse);
+                    }
+                    else
+                    {
+                        UserRefillTransactionDto userRefillTransactionDto = new UserRefillTransactionDto();
+                        userRefillTransactionDto.Amount = creditDto.amount;
+                        userRefillTransactionDto.transactionId = creditDto.transactionId;
+                        userRefillTransactionDto.UserId = user.Id;
+                        userRefillTransactionDto.status = true;
+                        userRefillTransactionDto.Date = DateTime.Now;
+
+                        await AddUserRefillTransaction(userRefillTransactionDto);
+                        await _userServices.NotifyUserPaymentStatus(creditDto.transactionId, true);
+                        var successResponse = new
+                        {
+                            Response = uc,
+                            ResponseCode = "0",
+                            ResponseMessage = "",
+                        };
+                        return Ok(successResponse);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                await _userServices.LogError(0, "1", ex.Message, ex.InnerException?.Message ?? "", "", "TopUpCredit");
+                var successResponse = new
+                {
+                    Response = "",
+                    ResponseCode = "1",
+                    ResponseMessage = "",
+                };
+                return Ok(successResponse);
             }
         }
 
@@ -995,30 +1039,46 @@ namespace FastFill_API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetBankCards(int page = 1, int pageSize = 10)
         {
-            int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-
-            PaginationInfo paginationInfo = new PaginationInfo();
-            IEnumerable<BankCard> bankCards = await _userServices.GetBankCards(page, pageSize, paginationInfo, currentUserId);
-            IEnumerable<BankCard> bankCard = _mapper.Map<IEnumerable<BankCard>>(bankCards);
-
-            var response = new
+            try
             {
-                BankCards = bankCard,
-                PaginationInfo = paginationInfo
-            };
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
 
-            return Ok(response);
+                PaginationInfo paginationInfo = new PaginationInfo();
+                IEnumerable<BankCard> bankCards = await _userServices.GetBankCards(page, pageSize, paginationInfo, currentUserId);
+                IEnumerable<BankCard> bankCard = _mapper.Map<IEnumerable<BankCard>>(bankCards);
+
+                var response = new
+                {
+                    BankCards = bankCard,
+                    PaginationInfo = paginationInfo
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                await _userServices.LogError(currentUserId, "1", ex.Message, ex.InnerException?.Message ?? "", "", "GetBankCards");
+                return Ok(null);
+            }
 
         }
 
 
         // POST: api/user
         [HttpPost("PaymentNotify")]
-        [Authorize(Policy = Policies.Sybertech)]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> PaymentNotify([FromBody] PaymentNotifyDto paymentNotifyDto)
+        public async Task<IActionResult> PaymentNotify([FromForm] PaymentNotifyDto paymentNotifyDto)
         {
+            
+            if (paymentNotifyDto != null)
+                _userServices.Log(paymentNotifyDto.transactionId);
+            else
+                _userServices.Log("Payment Notify has nothing to print");
+
+            await _userServices.LogError(0, "2", "TransactionId : " + paymentNotifyDto.transactionId, "", "", "PaymentNotify");
+
             if (paymentNotifyDto == null)
             {
                 return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
@@ -1029,70 +1089,245 @@ namespace FastFill_API.Controllers
                 return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
             }
 
-            User user = await _userServices.GetByMobileNumber(paymentNotifyDto.mobileNumber);
+            CheckPaymentStatusDto checkPaymentStatusDto = new CheckPaymentStatusDto();
 
-            if (user == null)
+            try
             {
-                var failedResponse = new
+                bool res = await _userServices.NotifyUserPaymentStatus(paymentNotifyDto.transactionId, false);
+
+                if (res)
                 {
-                    Response = "",
-                    ResponseCode = "1",
-                    ResponseMessage = ResponseMessages.NOT_FOUND,
-                };
-                return Ok(failedResponse);
+                    var successResponse = new
+                    {
+                        Response = "User Successfully notified ",
+                        ResponseCode = "0",
+                        ResponseMessage = "",
+                    };
+                    return Ok(successResponse);
+                }
+                else
+                {
+                    var invalidResponse = new
+                    {
+                        Response = "Could not notify user",
+                        ResponseCode = "200",
+                        ResponseMessage = "",
+                    };
+                    return Ok(invalidResponse);
+
+                }
             }
-            else
+            catch (Exception ex)
             {
-                var successResponse = new
+                await _userServices.LogError(0, "1", ex.Message, ex.InnerException?.Message ?? "", "", "PaymentNotify");
+
+                var invalidResponse = new
                 {
-                    Response = "Payment Successful",
-                    ResponseCode = "0",
+                    Response = "Could not notify user",
+                    ResponseCode = "200",
                     ResponseMessage = "",
                 };
-                return Ok(successResponse);
+                return Ok(invalidResponse);
             }
         }
 
         // POST: api/user
-        [HttpPost("PaymentCancel")]
-        [Authorize(Policy = Policies.Sybertech)]
+        [HttpPost("CancelPayment")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> PaymentCancel([FromBody] PaymentNotifyDto paymentNotifyDto)
+        public async Task<IActionResult> CancelPayment([FromBody] CancelPaymentDto cancelPaymentDto)
         {
-            if (paymentNotifyDto == null)
+            try
             {
-                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
-            }
+                if (cancelPaymentDto != null)
+                    _userServices.Log(cancelPaymentDto.responseStatus);
+                else
+                    _userServices.Log("Cancel Payment has nothing to print");
 
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
-            }
-
-            User user = await _userServices.GetByMobileNumber(paymentNotifyDto.mobileNumber);
-
-            if (user == null)
-            {
-                var failedResponse = new
+                if (cancelPaymentDto == null)
                 {
-                    Response = "",
+                    return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
+                }
+
+                {
+                    var successResponse = new
+                    {
+                        Response = "User Payment Successfully Cancelled",
+                        ResponseCode = "0",
+                        ResponseMessage = "",
+                    };
+                    return Ok(successResponse);
+                }
+            }
+            catch (Exception ex)
+            {
+                await _userServices.LogError(0, "1", ex.Message, ex.InnerException?.Message ?? "", "", "CancelPayment");
+                var errorResponse = new
+                {
+                    Response = "Error while canceling user payment",
                     ResponseCode = "1",
-                    ResponseMessage = ResponseMessages.NOT_FOUND,
+                    ResponseMessage = "Error while canceling user payment",
                 };
-                return Ok(failedResponse);
-            }
-            else
-            {
-                var successResponse = new
-                {
-                    Response = "Payment Cancelled",
-                    ResponseCode = "0",
-                    ResponseMessage = "",
-                };
-                return Ok(successResponse);
+                return Ok(errorResponse);
             }
         }
+
+        // POST: api/user
+        [HttpPost("ReturnFromPayment")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ReturnFromPayment([FromBody] ReturnFromPaymentDto returnFromPaymentDto)
+        {
+            try
+            {
+                if (returnFromPaymentDto != null)
+                    _userServices.Log(returnFromPaymentDto.customerRef);
+                else
+                    _userServices.Log("Return from Payment has nothing to print");
+
+                if (returnFromPaymentDto == null)
+                {
+                    return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
+                }
+
+                {
+                    var successResponse = new
+                    {
+                        Response = "Successfully returned from user payment",
+                        ResponseCode = "0",
+                        ResponseMessage = "",
+                    };
+                    return Ok(successResponse);
+                }
+            }
+            catch
+            (Exception ex)
+            {                
+                await _userServices.LogError(0, "1", ex.Message, ex.InnerException?.Message ?? "", "", "ReturnFromPayment");
+                var errorResponse = new
+                {
+                    Response = "Error while returning from user payment",
+                    ResponseCode = "1",
+                    ResponseMessage = "Error while returning from user payment",
+                };
+                return Ok(errorResponse);
+
+            }
+        }
+
+        // POST: api/user
+        [HttpPost("AddUserRefillTransaction")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> AddUserRefillTransaction([FromBody] UserRefillTransactionDto userRefillTransactionDto)
+        {
+            try
+            {
+                if (userRefillTransactionDto == null)
+                {
+                    return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(UserErrorMessages.ModelStateParser(ModelState));
+                }
+
+                //int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+                UserRefillTransaction mappedUserRefillTransaction = _mapper.Map<UserRefillTransaction>(userRefillTransactionDto);
+
+                //mappedUserRefillTransaction.UserId = currentUserId;
+
+                bool res = await _userServices.addAccountRefillSyberPayTransaction(mappedUserRefillTransaction);
+
+                return Ok(res);
+            }
+            catch (Exception ex)
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                await _userServices.LogError(currentUserId, "1", ex.Message, ex.InnerException?.Message ?? "", "", "AddUserRefillTransaction");
+                return Ok(false);
+            }
+        }
+
+        // POST: api/user
+        [HttpPut("UpdateUserLanguage")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> UpdateUserLanguage([FromBody] UpdateUserLanguageDto updateUserLanguageDto)
+        {
+            try
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                User user = await _userServices.GetUserById(currentUserId);
+                user.Language = updateUserLanguageDto.LanguageId;
+                await _userServices.Update(user);
+                return Ok(true);
+            }
+            catch (Exception ex)
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                await _userServices.LogError(currentUserId, "1", ex.Message, ex.InnerException?.Message ?? "", "", "UpdateUserLanguage");
+                return Ok(false);
+            }
+        }
+
+        // POST: api/user
+        [HttpGet("GetUserBalance")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetUserBalance()
+        {
+            try
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                double balance = await _userServices.getUserBalance(currentUserId);
+                return Ok(balance);
+            }
+            catch (Exception ex)
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                await _userServices.LogError(currentUserId, "1", ex.Message, ex.InnerException?.Message??"", "", "GetUserBalance");
+                return Ok(0.0);
+            }
+        }
+
+
+        // POST: api/user
+        [HttpGet("ClearNotifications")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ClearNotifications()
+        {
+            try
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                bool res = await _userServices.clearNotifications(currentUserId);
+                return Ok(res);
+            }
+            catch (Exception ex)
+            {
+                int currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                await _userServices.LogError(currentUserId, "1", ex.Message, ex.InnerException?.Message ?? "", "", "GetUserBalance");
+                return Ok(false);
+            }
+        }
+
 
     }
 }

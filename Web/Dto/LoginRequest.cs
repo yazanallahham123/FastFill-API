@@ -14,5 +14,6 @@ namespace FastFill_API.Web.Dto
 
         [Required(AllowEmptyStrings = false, ErrorMessage = LoginErrorMessages.MOBILE_NUMBER_REQUIRED)]
         public string mobileNumber { get; set; }
+        public int language { get; set; }
     }
 }

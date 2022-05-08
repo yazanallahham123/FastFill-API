@@ -4,14 +4,16 @@ using FastFill_API;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace FastFill_API.Migrations
 {
     [DbContext(typeof(FastFillDBContext))]
-    partial class FastFillDBContextModelSnapshot : ModelSnapshot
+    [Migration("20220416092212_UserRefillTransactions")]
+    partial class UserRefillTransactions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -153,39 +155,6 @@ namespace FastFill_API.Migrations
                     b.ToTable("CompanyBranches");
                 });
 
-            modelBuilder.Entity("FastFill_API.ErrorLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<string>("Code")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InnerMessage")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Location")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Message")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Type")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ErrorLogs");
-                });
-
             modelBuilder.Entity("FastFill_API.FavoriteCompany", b =>
                 {
                     b.Property<int>("Id")
@@ -289,9 +258,6 @@ namespace FastFill_API.Migrations
 
                     b.Property<string>("Address")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool?>("Cleared")
-                        .HasColumnType("bit");
 
                     b.Property<int?>("CompanyId")
                         .HasColumnType("int");
@@ -467,9 +433,6 @@ namespace FastFill_API.Migrations
 
                     b.Property<string>("ImageURL")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("Language")
-                        .HasColumnType("int");
 
                     b.Property<string>("LastName")
                         .IsRequired()

@@ -579,9 +579,17 @@ namespace FastFill_API.Repositories
             }
         }
 
-        public async Task<List<PaymentTransaction>> GetCompanyTransactions(int? companyId)
+        public async Task<List<PaymentTransaction>> GetCompanyTransactions(int? companyId, bool filterByDate, DateTime filterFromDate, DateTime filterToDate)
         {
-            List<PaymentTransaction> paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId).Include(x => x.Company).OrderByDescending(x => x.Date).ToListAsync();
+            List<PaymentTransaction> paymentTransactions;
+
+            if (!filterByDate)
+                paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId).Include(x => x.Company).Include(u => u.User).OrderByDescending(x => x.Date).ToListAsync();
+            else
+            {
+                paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId && pt.Date.Date >= filterFromDate && pt.Date.Date <= filterToDate).Include(x => x.Company).Include(u => u.User).OrderByDescending(x => x.Date).ToListAsync();
+            }
+
             return paymentTransactions;
         }
     }

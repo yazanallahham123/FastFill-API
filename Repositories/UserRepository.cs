@@ -26,7 +26,7 @@ namespace FastFill_API.Repositories
 
         public async Task<User> GetByMobileNumber(string mobileNumber)
         {
-            return await _context.Users.Where(u => u.MobileNumber == mobileNumber).FirstOrDefaultAsync();
+            return await _context.Users.Where(u => u.MobileNumber == mobileNumber).Include(x => x.Company).FirstOrDefaultAsync();
         }
 
         public async Task<bool> Insert(User user)
@@ -78,6 +78,10 @@ namespace FastFill_API.Repositories
             return await _context.Users.Where(u => u.RoleId == (int)RoleType.User).ToListAsync();
         }
 
+        public async Task<List<User>> GetCompanyUsers(int companyId)
+        {
+            return await _context.Users.Where(u => u.RoleId == (int)RoleType.Company && u.CompanyId == companyId).ToListAsync();
+        }
         public async Task<List<User>> GetAdmins()
         {
             return await _context.Users.Where(u => u.RoleId == (int)RoleType.Admin).ToListAsync();
@@ -115,7 +119,7 @@ namespace FastFill_API.Repositories
             if (u != null)
             {
                 u.FirebaseToken = firebaseToken;
-                Update(u);
+                await Update(u);
                 return true;
             }
             else
@@ -151,9 +155,9 @@ namespace FastFill_API.Repositories
         {
             User user = await GetById(userId);
             if (user.RoleId == 4)
-                return await _context.Notifications.Where((n) => n.CompanyId == user.CompanyId).OrderByDescending(x => x.Date).ToListAsync();
+                return await _context.Notifications.Where((n) => n.CompanyId == user.CompanyId && ((n.Cleared??false) == false)).OrderByDescending(x => x.Id).ToListAsync();
             else
-                return await _context.Notifications.Where((n) => n.UserId == userId).OrderByDescending(x => x.Date).ToListAsync();
+                return await _context.Notifications.Where((n) => n.UserId == userId && ((n.Cleared??false) == false)).OrderByDescending(x => x.Id).ToListAsync();
         }
 
         public async Task<List<PaymentTransaction>> GetPaymentTransactions(int userId)
@@ -209,5 +213,110 @@ namespace FastFill_API.Repositories
                 return false;
             }
         }
+
+        public async Task<UserRefillTransaction> GetSyberpayTransactionById(string transactionId)
+        {
+            try
+            {
+                return await _context.UserRefillTransactions.Where(u => u.transactionId == transactionId).Include(x => x.User).FirstOrDefaultAsync();
+            }
+            catch
+            {
+                return null;
+            }
+
+        }
+
+        public async Task<bool> AddUserRefillTransaction(UserRefillTransaction userRefillTransaction)
+        {
+            if (userRefillTransaction != null)
+            {
+                _context.UserRefillTransactions.Add(userRefillTransaction);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            else
+                return false;
+
+        }
+
+        public async Task<double> GetUserBalance(int userId)
+        {
+            double wallet = await _context.UserRefillTransactions.Where(urt => urt.UserId == userId && urt.status == true).SumAsync((urt => urt.Amount));
+            double transactions = await _context.PaymentTransactions.Where(pt => pt.UserId == userId && pt.Status == true).SumAsync((pt => pt.Amount));
+            return wallet - transactions;
+        }
+
+        public async Task<bool> UpdateUserLanguage(int userId, int language)
+        {
+            User? u = await _context.Users.Where((u) => u.Id == userId).FirstOrDefaultAsync();
+
+            if (u != null)
+            {
+                u.Language = language;
+                await Update(u);
+                return true;
+            }
+            else
+                return false;
+        }
+
+        public async Task<bool> LogError(int userId, string type, string message, string innerMessage, string code, string location)
+        {
+            try
+            {
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.Date = DateTime.Now;
+                errorLog.UserId = userId;
+                errorLog.Type = type;
+                errorLog.Message = message;
+                errorLog.InnerMessage = innerMessage;
+                errorLog.Location = location;
+
+                _context.ErrorLogs.Add(errorLog);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+
+        public async Task<bool> ClearNotifications(int userId)
+        {
+            try
+            {
+                var sql = $"UPDATE Notifications SET Cleared = 1 WHERE UserId = " + userId.ToString();
+
+                await _context.Database.ExecuteSqlRawAsync(sql);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateUserRefillStatus(string transactionId, bool status)
+        {
+            UserRefillTransaction? urt = await _context.UserRefillTransactions.Where((u) => u.transactionId == transactionId).FirstOrDefaultAsync();
+
+            if (urt != null)
+            {
+                urt.status = status;
+                _context.Attach(urt);
+                _context.UserRefillTransactions.Update(urt);
+                await _context.SaveChangesAsync();
+
+                return true;
+            }
+            else
+                return false;
+        }
+
+
     }
 }

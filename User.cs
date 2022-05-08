@@ -22,6 +22,7 @@ namespace FastFill_API
             PaymentTransactions = new HashSet<PaymentTransaction>();
             UserCredits = new HashSet<UserCredit>();
             BankCards = new HashSet<BankCard>();
+            UserRefillTransactions = new HashSet<UserRefillTransaction>();
         }
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -53,5 +54,8 @@ namespace FastFill_API
         public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; }
         public virtual ICollection<UserCredit> UserCredits { get; set; }
         public virtual ICollection<BankCard> BankCards { get; set; }
+        public virtual ICollection<UserRefillTransaction> UserRefillTransactions { get; set; }
+
+        public int? Language { get; set; }
     }
 }

@@ -255,12 +255,12 @@ namespace FastFill_API.Web.Services
             }
         }
 
-        public async Task<IEnumerable<PaymentTransaction>> GetCompanyPaymentTransactions(int page, int pageSize, PaginationInfo paginationInfo, int userId)
+        public async Task<IEnumerable<PaymentTransaction>> GetCompanyPaymentTransactions(int page, int pageSize, PaginationInfo paginationInfo, int userId, bool filterByDate, DateTime filterFromDate, DateTime filterToDate)
         {
             User user = await _repository.GetUserRepository.GetById(userId);
             int? companyId = user.CompanyId;
 
-            List<PaymentTransaction> paymentTransactions = await _repository.GetCompanyRepository.GetCompanyTransactions(companyId);
+            List<PaymentTransaction> paymentTransactions = await _repository.GetCompanyRepository.GetCompanyTransactions(companyId, filterByDate, filterFromDate, filterToDate);
 
             paginationInfo.SetValues(pageSize, page, paymentTransactions.Count());
             return paymentTransactions.Skip((page - 1) * pageSize).Take(pageSize);
