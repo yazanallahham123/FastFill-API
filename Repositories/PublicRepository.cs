@@ -12,7 +12,7 @@ namespace FastFill_API.Repositories
         private readonly FastFillDBContext _context;
         private IUserRepository _userRepository;
         private ICompanyRepository _companyRepository;
-
+        private IDashboardRepository _dashboardRepository;
 
         public PublicRepository(FastFillDBContext context)
         {
@@ -32,6 +32,14 @@ namespace FastFill_API.Repositories
             get
             {
                 return _companyRepository ??= new CompanyRepository(_context);
+            }
+        }
+
+        public IDashboardRepository GetDashboardRepository
+        {
+            get
+            {
+                return _dashboardRepository ??= new DashboardRepository(_context);
             }
         }
 

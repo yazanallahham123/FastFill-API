@@ -1,7 +1,6 @@
-using AutoMapper;
 using FastFill_API.Data;
 using FastFill_API.Interfaces;
-
+using AutoMapper;
 using FastFill_API.Repositories;
 using FastFill_API.Web.Profile;
 using FastFill_API.Web.Services;
@@ -36,9 +35,9 @@ namespace FastFill_API
                 new Microsoft.Extensions.Logging.Debug.DebugLoggerProvider()
        });
 
-        public static IConfiguration Configuration;
+        public static Microsoft.Extensions.Configuration.IConfiguration Configuration;
 
-        public Startup(IConfiguration configuration)
+        public Startup(Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             Configuration = new ConfigurationBuilder()
                 .AddJsonFile(Directory.GetCurrentDirectory() + "/Properties/launchSettings.json", optional: true,
@@ -115,6 +114,7 @@ namespace FastFill_API
             services.AddScoped<UserServices>();
             services.AddScoped<SecurityServices>();
             services.AddScoped<CompanyServices>();
+            services.AddScoped<DashboardServices>();
 
             // Mapper setting
             IMapper mapper =
@@ -182,6 +182,9 @@ namespace FastFill_API
                 config.AddPolicy(Policies.User, Policies.UserPolicy());
                 config.AddPolicy(Policies.Company, Policies.CompanyPolicy());
                 config.AddPolicy(Policies.Sybertech, Policies.SyberTechPolicy());
+                config.AddPolicy(Policies.CompanyAgent, Policies.CompanyAgentPolicy());
+                config.AddPolicy(Policies.Bushrapay, Policies.BushraPayPolicy());
+                config.AddPolicy(Policies.Faisal, Policies.FaisalPolicy());
             });
 
             services.AddControllersWithViews().AddNewtonsoftJson(options =>

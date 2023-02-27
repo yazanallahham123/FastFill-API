@@ -1,6 +1,8 @@
 ﻿using AutoMapper;
 using FastFill_API.Interfaces;
+using FastFill_API.Web.Dto;
 using FastFill_API.Web.Model;
+using FastFill_API.Web.Services;
 using FastFill_API.Web.Utils;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -14,14 +16,23 @@ namespace FastFill_API.Repositories
     public class CompanyRepository : ICompanyRepository
     {
         private readonly FastFillDBContext _context;
-       
+        
         public CompanyRepository(FastFillDBContext context)
         {
             _context = context;
+
         }
         public async Task<List<CompanyWithFavorite>> GetAllCompanies(int userId)
         {
-            List<Company> companies = await _context.Companies.Include(x => x.CompanyBranches).ToListAsync();
+
+            List<Company> companies = new List<Company>();
+
+            User u = await _context.Users.Where((x) => x.Id == userId).FirstAsync();
+
+            if (u.RoleId == 1)
+                companies = await _context.Companies.Include(x => x.CompanyBranches).Include(x => x.Group).ToListAsync();
+            else
+                companies = await _context.Companies.Where((x) => (x.Disabled??false) == false).Include(x => x.CompanyBranches).Include(x => x.Group).ToListAsync();
 
             List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.ToListAsync();
 
@@ -42,7 +53,14 @@ namespace FastFill_API.Repositories
 
         public async Task<CompanyWithFavorite> GetCompanyByCode(int userId, string code)
         {
-            Company company = await _context.Companies.Where(c => c.Code == code).Include(x => x.CompanyBranches).FirstAsync();
+
+            User u = await _context.Users.Where((x) => x.Id == userId).FirstAsync();
+            Company company = new Company();
+
+            if (u.RoleId == 1)
+                company = await _context.Companies.Where(c => c.Code == code).Include(x => x.CompanyBranches).Include(x => x.Group).FirstAsync();
+            else
+                company = await _context.Companies.Where(c => c.Code == code && (c.Disabled??false) == false).Include(x => x.CompanyBranches).Include(x => x.Group).FirstAsync();
 
             List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.ToListAsync();
 
@@ -59,7 +77,15 @@ namespace FastFill_API.Repositories
 
         public async Task<List<CompanyWithFavorite>> SearchCompaniesByName(int userId, string name)
         {
-            List<Company> companies = await _context.Companies.Where(c => c.ArabicName.StartsWith(name) || c.EnglishName.StartsWith(name)).Include(x => x.CompanyBranches).ToListAsync();
+
+            User u = await _context.Users.Where((x) => x.Id == userId).FirstAsync();
+
+            List<Company> companies = new List<Company>();
+
+            if (u.RoleId == 1)
+                companies = await _context.Companies.Where(c => (c.ArabicName.StartsWith(name) || c.EnglishName.StartsWith(name))).Include(x => x.CompanyBranches).Include(x => x.Group).ToListAsync();
+            else
+               companies = await _context.Companies.Where(c => (c.Disabled??false) == false && (c.ArabicName.StartsWith(name) || c.EnglishName.StartsWith(name))).Include(x => x.CompanyBranches).Include(x => x.Group).ToListAsync();
 
             List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.ToListAsync();
 
@@ -126,7 +152,15 @@ namespace FastFill_API.Repositories
 
         public async Task<List<CompanyWithFavorite>> SearchCompaniesByText(int userId, string text)
         {
-            List<Company> companies = await _context.Companies.Where(c => c.ArabicName.StartsWith(text) || c.EnglishName.StartsWith(text) || c.Code == text).ToListAsync();
+
+            User u = await _context.Users.Where((x) => x.Id == userId).FirstAsync();
+
+            List<Company> companies = new List<Company>();
+
+            if (u.RoleId == 1)
+                companies = await _context.Companies.Where(c => (c.ArabicName.StartsWith(text) || c.EnglishName.StartsWith(text) || c.Code == text)).Include(x => x.Group).ToListAsync();
+            else
+                companies = await _context.Companies.Where(c => (c.Disabled??false) == false && (c.ArabicName.StartsWith(text) || c.EnglishName.StartsWith(text) || c.Code == text)).Include(x => x.Group).ToListAsync();
 
             List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.ToListAsync();
 
@@ -323,8 +357,8 @@ namespace FastFill_API.Repositories
         }
 
         public async Task<List<CompanyWithFavorite>> GetFavoriteCompanies(int userId) {
-            List<Company> companies = await _context.Companies.ToListAsync();
-            List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.ToListAsync();
+            List<Company> companies = await _context.Companies.Include(x => x.Group).ToListAsync();
+            List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.Where((x) => (x.Company.Disabled??false) == false).ToListAsync();
 
             List<CompanyWithFavorite> companiesWithFavorite = new List<CompanyWithFavorite>();
             companies.ForEach((c) => {
@@ -584,13 +618,179 @@ namespace FastFill_API.Repositories
             List<PaymentTransaction> paymentTransactions;
 
             if (!filterByDate)
-                paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId).Include(x => x.Company).Include(u => u.User).OrderByDescending(x => x.Date).ToListAsync();
+                paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId).Include(x => x.Company).Include(u => u.User).OrderByDescending(x => x.Date).ThenByDescending((xx) => xx.DailyId).ToListAsync();
             else
             {
-                paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId && pt.Date.Date >= filterFromDate && pt.Date.Date <= filterToDate).Include(x => x.Company).Include(u => u.User).OrderByDescending(x => x.Date).ToListAsync();
+                paymentTransactions = await _context.PaymentTransactions.Where(pt => pt.CompanyId == companyId && pt.Date.Date >= filterFromDate.Date && pt.Date.Date <= filterToDate.Date).Include(x => x.Company).Include(u => u.User).OrderByDescending(x => x.Date).ThenByDescending((xx) => xx.DailyId).ToListAsync();
             }
 
             return paymentTransactions;
         }
+
+        public async Task<List<MonthlyPaymentTransaction>> GetMonthlyCompanyTransactions(int? companyId)
+        {
+            List<MonthlyPaymentTransaction> monthlyPaymentTransactions;
+
+            monthlyPaymentTransactions = await _context.PaymentTransactions.Where(x => (x.CompanyId == companyId && x.Status == true)).GroupBy
+                (x => new { x.Date.Month, x.Date.Year}).Select(g => new
+            MonthlyPaymentTransaction
+            {
+                count = g.Count(),
+                amount = g.Sum(c=> c.Amount - c.Fastfill),
+                month = g.Key.Month, 
+                year = g.Key.Year
+            }            
+            ).ToListAsync();
+
+            return monthlyPaymentTransactions;
+
+        }
+
+        public async Task<TotalPaymentTransaction> GetTotalCompanyPaymentTransactions(int? companyId, bool filterByDate, DateTime filterFromDate, DateTime filterToDate)
+        {
+            TotalPaymentTransaction totalCompanyPaymentTransactions;
+
+            if (filterByDate)
+                totalCompanyPaymentTransactions = await _context.PaymentTransactions.Where(x => (x.CompanyId == companyId && x.Status == true && x.Date.Date >= filterFromDate.Date && x.Date.Date <= filterToDate.Date)).GroupBy(_ => 1, (_, rows) => new TotalPaymentTransaction { count = rows.Count(), amount = rows.Sum(x => x.Amount - x.Fastfill) }).FirstOrDefaultAsync();
+            else
+                totalCompanyPaymentTransactions = await _context.PaymentTransactions.Where(x => (x.CompanyId == companyId && x.Status == true)).GroupBy(_ => 1, (_, rows) => new TotalPaymentTransaction { count = rows.Count(), amount = rows.Sum(x => x.Amount - x.Fastfill) }).FirstOrDefaultAsync();
+            return totalCompanyPaymentTransactions;
+        }
+
+        public async Task<int> GetCompanisCount()
+        {
+            return await _context.Companies.CountAsync();
+        }
+
+        public Task<bool> InsertCompanyPump(CompanyPump companyPump)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<bool> UpdateCompanyPump(CompanyPump companyPump)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<bool> DeleteCompanyPump(CompanyPump companyPump)
+        {
+            throw new NotImplementedException();
+        }
+
+
+        public async Task<bool> InsertGroup(Group group)
+        {
+            try
+            {
+                if (group != null)
+                {
+                    _context.Groups.Add(group);
+                    await _context.SaveChangesAsync();
+                    return true;
+                }
+                else
+                    return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateGroup(Group group)
+        {
+            try
+            {
+                if (group != null)
+                {
+                    _context.Groups.Update(group);
+                    await _context.SaveChangesAsync();
+                    return true;
+                }
+                else
+                    return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteGroup(Group group)
+        {
+            try
+            {
+                if (group != null)
+                {
+                    _context.Groups.Remove(group);
+                    await _context.SaveChangesAsync();
+                    return true;
+                }
+                else
+                    return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<Group> GetGroupById(int id)
+        {
+            return await _context.Groups.FindAsync(id);
+        }
+
+
+        public async Task<List<Group>> GetAllGroups()
+        {
+
+            List<Group> groups = new List<Group>();
+
+            groups = await _context.Groups.ToListAsync();
+
+            return groups;
+        }
+
+        public async Task<List<Group>> SearchGroupsByName(string name)
+        {
+
+            List<Group> groups = new List<Group>();
+            groups = await _context.Groups.Where(c => c.ArabicName.StartsWith(name) || c.EnglishName.StartsWith(name)).ToListAsync();
+
+            return groups;
+
+        }
+
+        public async Task<List<CompanyWithFavorite>> GetAllCompaniesByGroup(int userId)
+        {
+
+            List<Company> companies = new List<Company>();
+
+            User u = await _context.Users.Where((x) => x.Id == userId).FirstAsync();
+
+            int? groupId = u.GroupId;
+
+            if (u.RoleId == 1)
+                companies = await _context.Companies.Where((x) => x.GroupId == groupId).Include(x => x.CompanyBranches).Include(x => x.Group).ToListAsync();
+            else
+                companies = await _context.Companies.Where((x) => (x.Disabled ?? false) == false && x.GroupId == groupId).Include(x => x.CompanyBranches).Include(x => x.Group).ToListAsync();
+
+            List<FavoriteCompany> favoriteCompanies = await _context.FavoriteCompanies.Where((x) => x.UserId == u.Id).ToListAsync();
+
+            List<CompanyWithFavorite> companiesWithFavorite = new List<CompanyWithFavorite>();
+
+            companies.ForEach((c) => {
+                var s = JsonConvert.SerializeObject(c);
+                CompanyWithFavorite cwf = JsonConvert.DeserializeObject<CompanyWithFavorite>(s);
+                if (favoriteCompanies.Exists((fc) => fc.CompanyId == c.Id && fc.UserId == userId))
+                    cwf.IsFavorite = true;
+                else
+                    cwf.IsFavorite = false;
+                companiesWithFavorite.Add(cwf);
+            });
+
+            return companiesWithFavorite;
+        }
+
     }
 }

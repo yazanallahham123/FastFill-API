@@ -11,6 +11,8 @@ namespace FastFill_API.Web.Utils
         Support = 2,
         User = 3,
         Company = 4,
-        Sybertech = 100
+        Sybertech = 100,
+        Bushrapay = 101,
+        CompanyAgent = 5
     }
 }

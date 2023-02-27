@@ -34,6 +34,13 @@ namespace FastFill_API
         public virtual DbSet<BankCard> BankCards { get; set; }
         public virtual DbSet<UserRefillTransaction> UserRefillTransactions { get; set; }
         public virtual DbSet<ErrorLog> ErrorLogs { get; set; }
+        public virtual DbSet<TempSetting> TempSettings { get; set; }
+        public virtual DbSet<CompanyPump> CompanyPumps { get; set; }
+        public virtual DbSet<CompanyAgentPump> CompanyAgentPumps { get; set; }
+        public virtual DbSet<CompanyPumpState> CompanyPumpsState { get; set; }
+        public virtual DbSet<Group> Groups { get; set; }
+
+        public virtual DbSet<Otp> Otps { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -48,6 +55,8 @@ namespace FastFill_API
         {
             modelBuilder.HasAnnotation("Relational:Collation", "Arabic_CI_AS");
 
+            modelBuilder.Entity<TempSetting>(entity => { entity.HasNoKey(); });
+
             modelBuilder.Entity<Company>(entity =>
             {
                 entity.Property(e => e.ArabicName).IsRequired();
@@ -61,7 +70,14 @@ namespace FastFill_API
                 entity.Property(e => e.LogoUrl).HasColumnName("LogoURL");
 
                 entity.Property(e => e.Longitude).HasColumnType("decimal(18, 0)");
+
+                entity.HasOne(d => d.Group)
+                .WithMany(p => p.Companies)
+                .HasForeignKey(d => d.GroupId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Companies_Groups");
             });
+
 
 
             modelBuilder.Entity<PaymentTransaction>(entity =>
@@ -77,8 +93,6 @@ namespace FastFill_API
                     .HasForeignKey(d => d.CompanyId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK_PaymentTransactions_Companies");
-
-
             });
 
             modelBuilder.Entity<Notification>(entity =>
@@ -147,7 +161,7 @@ namespace FastFill_API
                 entity.HasOne(d => d.User)
                     .WithMany(p => p.FavoriteCompanies)
                     .HasForeignKey(d => d.UserId)
-                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_FavoriteCompanies_Users");
 
                 entity.HasOne(d => d.Company)
@@ -279,6 +293,13 @@ namespace FastFill_API
                     .HasForeignKey(d => d.CompanyId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK_Users_UserCompanies");
+
+                entity.HasOne(d => d.Group)
+                    .WithMany(p => p.Users)
+                    .HasForeignKey(d => d.GroupId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Users_Groups");
+
             });
 
             modelBuilder.Entity<UserRole>(entity =>
@@ -308,6 +329,37 @@ namespace FastFill_API
                     .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK_Wallets_Users");
+            });
+
+            modelBuilder.Entity<CompanyPump>(entity => {
+                entity.HasOne(d => d.Company).WithMany(p => p.CompanyPumps)
+                .HasForeignKey(d => d.CompanyId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CompanyPumps_Companies");
+            });
+
+            modelBuilder.Entity<CompanyAgentPump>()
+                        .HasOne(s => s.Agent)
+                        .WithMany(c => c.Pumps);
+
+            modelBuilder.Entity<CompanyAgentPump>()
+                        .HasOne(s => s.Pump)
+                        .WithMany(c => c.Agents);
+
+            modelBuilder.Entity<CompanyPumpState>(entity =>
+            {
+                entity.HasOne(d => d.CompanyAgentPump).WithMany(p => p.States)
+                .HasForeignKey(d => d.CompanyAgentPumpId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CompanyPumpsState_CompanyPumps");
+            });
+
+
+            modelBuilder.Entity<PaymentTransaction>(entity => {
+                entity.HasOne(d => d.CompanyPump).WithMany(p => p.PaymentTransactions)
+                .HasForeignKey(d => d.CompanyPumpId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PaymentTransactions_CompanyPumps");
             });
 
             OnModelCreatingPartial(modelBuilder);

@@ -23,6 +23,7 @@ namespace FastFill_API
             UserCredits = new HashSet<UserCredit>();
             BankCards = new HashSet<BankCard>();
             UserRefillTransactions = new HashSet<UserRefillTransaction>();
+            Pumps = new HashSet<CompanyAgentPump>();
         }
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -39,6 +40,8 @@ namespace FastFill_API
         public byte[] StoredSalt { get; set; }
 
         public int? CompanyId { get; set; }
+
+        public int? GroupId { get; set; }
 
         public string? FirebaseToken { get; set; }
         public string ImageURL { get; set; }
@@ -57,5 +60,9 @@ namespace FastFill_API
         public virtual ICollection<UserRefillTransaction> UserRefillTransactions { get; set; }
 
         public int? Language { get; set; }
+        public virtual ICollection<CompanyAgentPump> Pumps { get; set; }
+
+        public virtual Group? Group { get; set; }
+
     }
 }

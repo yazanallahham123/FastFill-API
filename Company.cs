@@ -17,6 +17,7 @@ namespace FastFill_API
             PaymentTransactions = new HashSet<PaymentTransaction>();
             Users = new HashSet<User>();
             Notifications = new HashSet<Notification>();
+            CompanyPumps = new HashSet<CompanyPump>();
         }
 
         public int Id { get; set; }
@@ -31,26 +32,38 @@ namespace FastFill_API
         public bool? IsOpen { get; set; }
         public string BankAccountId { get; set; }
         public string LogoUrl { get; set; }
+        public int? GroupId { get; set; }
+        public bool? AutoAddToFavorite { get; set; }
 
         [JsonIgnore]
         [IgnoreDataMember]
         public virtual ICollection<CompanyBranch> CompanyBranches { get; set; }
+
         [JsonIgnore]
         [IgnoreDataMember]
-
         public virtual ICollection<FavoriteCompany> FavoriteCompanies { get; set; }
+
         [JsonIgnore]
         [IgnoreDataMember]
-
         public virtual ICollection<FrequentlyVisitedCompany> FrequentlyVisitedCompanies { get; set; }
+
         [JsonIgnore]
         [IgnoreDataMember]
         public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; }
+
         [JsonIgnore]
         [IgnoreDataMember]
         public virtual ICollection<User> Users { get; set; }
+
         [JsonIgnore]
         [IgnoreDataMember]
         public virtual ICollection<Notification> Notifications { get; set; }
+
+        [JsonIgnore]
+        [IgnoreDataMember]
+        public virtual ICollection<CompanyPump>? CompanyPumps { get; set; }
+
+        public virtual Group? Group { get; set; }
+
     }
 }

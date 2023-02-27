@@ -20,6 +20,7 @@ namespace FastFill_API
         public DateTime Date { get; set; }
         public double Amount { get; set; }
         public bool status { get; set; }
+        public int? RefillSourceId { get; set; }
         [JsonIgnore]
         [IgnoreDataMember]
         public virtual User User { get; set; }

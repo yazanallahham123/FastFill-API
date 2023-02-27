@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using FastFill_API.Data;
+using FastFill_API.Extentions;
 using FastFill_API.Web.Dto;
 using FastFill_API.Web.Model;
 using FastFill_API.Web.Services;
@@ -8,8 +9,14 @@ using FastFill_API.Web.Utils.Messages;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using PdfSharp.Drawing;
+using PdfSharp.Drawing.Layout;
+using PdfSharp.Pdf;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -33,27 +40,7 @@ namespace FastFill_API.Controllers
         }
 
 
-        // GET: api/company/AllCompanies
-        [HttpGet("AllCompanies")]
-        [Authorize]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAllCompanies(int page = 1, int pageSize = 10)
-        {
-            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
 
-            PaginationInfo paginationInfo = new PaginationInfo();
-            IEnumerable<Company> companies = await _companyServices.GetAllCompanies(page, pageSize, paginationInfo, userId);
-            IEnumerable<Company> company = _mapper.Map<IEnumerable<Company>>(companies);
-
-            var response = new
-            {
-                Companies = company,
-                PaginationInfo = paginationInfo
-            };
-
-            return Ok(response);
-        }
 
         // GET: api/company/CompanyByCode
         [HttpGet("CompanyByCode/{code}")]
@@ -605,6 +592,9 @@ namespace FastFill_API.Controllers
             mappedCompany.ArabicAddress = updateCompanyDto.ArabicAddress;
             mappedCompany.EnglishAddress = updateCompanyDto.EnglishAddress;
             mappedCompany.Code = updateCompanyDto.Code;
+            mappedCompany.GroupId = updateCompanyDto.GroupId;
+            mappedCompany.Disabled = updateCompanyDto.Disabled;
+            mappedCompany.AutoAddToFavorite = updateCompanyDto.AutoAddToFavorite;
 
             bool res = await _companyServices.AddCompany(mappedCompany);
             if (!res)
@@ -640,6 +630,9 @@ namespace FastFill_API.Controllers
             mappedCompany.ArabicAddress = updateCompanyDto.ArabicAddress;
             mappedCompany.EnglishAddress = updateCompanyDto.EnglishAddress;
             mappedCompany.Code = updateCompanyDto.Code;
+            mappedCompany.GroupId = updateCompanyDto.GroupId;
+            mappedCompany.Disabled = updateCompanyDto.Disabled;
+            mappedCompany.AutoAddToFavorite = updateCompanyDto.AutoAddToFavorite;
 
             bool res = await _companyServices.UpdateCompany(mappedCompany);
             if (!res)
@@ -770,5 +763,2104 @@ namespace FastFill_API.Controllers
 
             return Ok(response);
         }
+
+        [HttpGet("GetMonthlyStationPaymentTransactions")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetMonthlyStationPaymentTransactions(int page = 1, int pageSize = 10)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            PaginationInfo paginationInfo = new PaginationInfo();
+            IEnumerable<MonthlyPaymentTransaction> monthlyCompanyPaymentTransactions = await _companyServices.GetMonthlyCompanyPaymentTransactions(page, pageSize, paginationInfo, userId);
+
+            var response = new
+            {
+                MonthlyStationPaymentTransactions = monthlyCompanyPaymentTransactions,
+                PaginationInfo = paginationInfo
+            };
+
+            return Ok(response);
+        }
+
+
+        [HttpGet("GetTotalStationPaymentTransactions")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetTotalCompanyPaymentTransactions(bool filterByDate, DateTime filterFromDate, DateTime filterToDate)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            TotalPaymentTransaction companyTotalPaymentTransactions = await _companyServices.GetTotalCompanyPaymentTransactions(userId, filterByDate, filterFromDate, filterToDate);
+
+            return Ok(companyTotalPaymentTransactions);
+        }
+
+        // GET: api/company/FrequentlyVisitedCompaniesBranches
+        [HttpGet("GetStationPaymentTransactionsPDF")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetCompanyPaymentTransactionsPDF(bool filterByDate, DateTime filterFromDate, DateTime filterToDate)
+
+        {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            User user = await _userServices.GetUserById(userId, 0);
+
+            DateTime fromDate = filterFromDate;
+            DateTime toDate = filterToDate;
+
+            var paymentTransactions = await _companyServices.GetCompanyPaymentTransactionsPDF(userId, true, fromDate, toDate);
+
+            string title = "Transactions Details Report";
+            string dateTitle = "Date";
+            string mobileNumberTitle = "Customer NO.";
+            string userTitle = "Name";
+            string amountTitle = "Amount";
+            string currencyCode = "SDG";
+            string fromDateTitle = "From: ";
+            string toDateTitle = "To: ";
+
+            if (user.Language == 2)
+            {
+                title = " تقرير تفصيلي بالعمليات ".ArabicWithFontGlyphsToPfd();
+                dateTitle = " التاريخ ".ArabicWithFontGlyphsToPfd(); ;
+                mobileNumberTitle = " رقم العميل ".ArabicWithFontGlyphsToPfd(); ;
+                userTitle = " اسم العميل ".ArabicWithFontGlyphsToPfd(); ;
+                amountTitle = " القيمة ".ArabicWithFontGlyphsToPfd(); ;
+                currencyCode = " ج.س ".ArabicWithFontGlyphsToPfd(); ;
+                fromDateTitle = "من : ".ArabicWithFontGlyphsToPfd(); ;
+                toDateTitle = "إلى : ".ArabicWithFontGlyphsToPfd(); ;
+            }
+
+            PdfDocument document = new PdfDocument();
+            // Page Options
+            PdfPage pdfPage = document.AddPage();
+            pdfPage.Height = 3508;//842
+            pdfPage.Width = 2480;
+
+            // Get an XGraphics object for drawing
+            XGraphics graph = XGraphics.FromPdfPage(pdfPage);
+
+            // Text format
+            XStringFormat format = new XStringFormat();
+            format.LineAlignment = XLineAlignment.Near;
+            format.Alignment = XStringAlignment.Near;
+            var tf = new XTextFormatter(graph);
+
+            XFont fontParagraph = new XFont("Arial", 40, XFontStyle.Regular);
+
+            // Row elements
+            int el1_width = 150;
+            int el2_width = 516;
+            int el3_width = 316;
+            int el4_width = 682;
+            int el5_width = 416;
+
+
+            // page structure options
+            double lineHeight = 100;
+            int marginLeft = 200;
+            int marginTop = 200;
+
+            int el_height = 100;
+            int rect_height = 100;
+
+            int interLine_X_1 = 2;
+            int interLine_X_2 = 2 * interLine_X_1;
+            int interLine_X_3 = 3 * interLine_X_1;
+            int interLine_X_4 = 4 * interLine_X_1;
+            int interLine_X_5 = 5 * interLine_X_1;
+
+
+            int offSetX_1 = el1_width;
+            int offSetX_2 = el1_width + el2_width;
+            int offSetX_3 = el1_width + el2_width + el3_width;
+            int offSetX_4 = el1_width + el2_width + el3_width + el4_width;
+            int offSetX_5 = el1_width + el2_width + el3_width + el4_width + el5_width;
+
+            XSolidBrush rect_style1 = new XSolidBrush(XColors.LightGray);
+
+            XSolidBrush rect_style2 = new XSolidBrush(XColor.FromArgb(255, 220, 189));
+
+            XPen rect_style2_pen = new XPen(XColors.Black);
+
+            XSolidBrush rect_style3 = new XSolidBrush(XColor.FromArgb(209, 207, 142));
+            int i = -1;
+            int x = -1;
+
+            var logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+            XImage image = XImage.FromFile(logoPath);
+
+            graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+            tf.DrawString(title, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            x = x + 1;
+            i = i + 1;
+            double dist_Y = lineHeight * (x + 1);
+            double dist_Y2 = dist_Y - 2;
+            int pageNo = 1;
+            int line = 0;
+            //graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (marginLeft + 20 + offSetX_4 + 2 * interLine_X_4) + el5_width, rect_height);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+            tf.DrawString("#", fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+            tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+            tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+            tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+            tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+            double totalMonthlyAmount = 0;
+
+                line = 0;
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                    image = XImage.FromFile(logoPath);
+
+                    graph.DrawImage(image, 1090, 10, 300, 300);
+
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                    tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                    tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                    tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                    tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                    tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                    tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+
+                }
+
+
+                graph.DrawRectangle(rect_style2_pen, rect_style3, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(fromDateTitle+" "+fromDate.ToString("dd-MM-yyyy") + " " + toDateTitle + " " + toDate.ToString("dd-MM-yyyy"), fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20, marginTop + dist_Y + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+
+                totalMonthlyAmount = 0;
+                foreach (var item in paymentTransactions)
+                {
+                    line = line + 1;
+                    totalMonthlyAmount = totalMonthlyAmount + (item.Amount - item.Fastfill);
+
+                    i = i + 1;
+                    x = x + 1;
+
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    if ((marginTop + dist_Y) > 3250)
+                    {
+
+                        tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                        pageNo = pageNo + 1;
+
+                        PdfPage newPage = document.AddPage();
+                        newPage.Height = 3508;//842
+                        newPage.Width = 2480;
+                        graph = XGraphics.FromPdfPage(newPage);
+                        tf = new XTextFormatter(graph);
+                        x = -1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                        logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                        image = XImage.FromFile(logoPath);
+
+                        graph.DrawImage(image, 1090, 10, 300, 300);
+
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                        tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                        x = x + 1;
+                        i = i + 1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                        tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                        tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                        tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                        tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                        tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                        x = x + 1;
+                        i = i + 1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                    }
+                    //dist_Y = lineHeight * (x);
+                    //dist_Y2 = dist_Y - 2;
+
+
+                    // header della G
+                    /*if (i == 2)
+                    {
+                        graph.DrawRectangle(rect_style2, marginLeft, marginTop, pdfPage.Width - 2 * marginLeft, rect_height);
+
+                        tf.DrawString("#", fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(dateTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_1 + interLine_X_1, marginTop, el2_width, el_height), format);
+
+                        tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_2 + 2 * interLine_X_2, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(userTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_3 + 2 * interLine_X_3, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(amountTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_4 + 2 * interLine_X_4, marginTop, el1_width, el_height), format);
+
+
+                    }
+                    else */
+                    {
+
+                        //if (i % 2 == 1)
+                        //{
+                        //  graph.DrawRectangle(TextBackgroundBrush, marginLeft, lineY - 2 + marginTop, pdfPage.Width - marginLeft - marginRight, lineHeight - 2);
+                        //}
+
+                        //ELEMENT 1 - SMALL 80
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                        tf.DrawString(
+
+                            line.ToString(),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height),
+                            format);
+
+                        //ELEMENT 2 - BIG 380
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                        tf.DrawString(
+                            item.Date.ToString("yyyy-MM-dd hh:mm tt"),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height),
+                            format);
+
+
+                        //ELEMENT 3 - SMALL 80
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                        tf.DrawString(
+                            item.User.Id.ToString(),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height),
+                            format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                        tf.DrawString(
+                            item.User.FirstName,
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height),
+                            format);
+
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                        tf.DrawString(
+                            String.Format("{0:n0}", item.Amount-item.Fastfill) + " " + currencyCode,
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height),
+                            format);
+
+                    }
+
+                }
+
+
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                }
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(String.Format("{0:n0}", totalMonthlyAmount) + " " + currencyCode, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+            
+
+            tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+            new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            var fileName = "attachment_" + System.Guid.NewGuid().ToString() + ".pdf";
+
+            var path = Directory.GetCurrentDirectory() + @"\attachments\" + fileName;
+
+            string fileURL = "https://fastfillpro.developitech.com/attachments/" + fileName;
+
+            document.Save(path);
+
+            var response = new
+            {
+                URL = fileURL,
+            };
+
+            return Ok(response);
+        }
+
+        [HttpPost("GetMonthlyCompanyPaymentTransactionsPDF")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetMonthlyCompanyPaymentTransactionsPDF([FromBody] List<MonthlyPaymentTransactionDto> MonthlyPaymentTransactions)
+        {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            User user = await _userServices.GetUserById(userId, 0);
+
+            List<MonthlyPaymentTransactionListDto> monthlyPaymentTransactionList = new List<MonthlyPaymentTransactionListDto>();
+
+            foreach (var item in MonthlyPaymentTransactions)
+            {
+                MonthlyPaymentTransactionListDto monthlyPaymentTransactionListDto = new MonthlyPaymentTransactionListDto();
+                monthlyPaymentTransactionListDto.monthlyPaymentTransactionDto = item;
+
+                int mDays = DateTime.DaysInMonth(item.Year, item.Month);
+                DateTime fromDate = new DateTime(item.Year, item.Month, 1);
+                DateTime toDate = new DateTime(item.Year, item.Month, mDays);
+
+                monthlyPaymentTransactionListDto.paymentTransactions = await _companyServices.GetCompanyPaymentTransactionsPDF(userId, true, fromDate, toDate);
+                if (monthlyPaymentTransactionListDto.paymentTransactions.Count() > 0)
+                    monthlyPaymentTransactionList.Add(monthlyPaymentTransactionListDto);                
+            }
+           
+            string title = "Transactions Details Report";
+            string dateTitle = "Date";
+            string mobileNumberTitle = "Customer NO.";
+            string userTitle = "Name";
+            string amountTitle = "Amount";
+            string currencyCode = "SDG";
+
+            if (user.Language == 2)
+            {
+                title = " تقرير تفصيلي بالعمليات ".ArabicWithFontGlyphsToPfd();
+                dateTitle = " التاريخ ".ArabicWithFontGlyphsToPfd();
+                mobileNumberTitle = " رقم العميل ".ArabicWithFontGlyphsToPfd();
+                userTitle = " اسم العميل ".ArabicWithFontGlyphsToPfd();
+                amountTitle = " القيمة ".ArabicWithFontGlyphsToPfd();
+                currencyCode = " ج.س ".ArabicWithFontGlyphsToPfd();
+            }
+
+            PdfDocument document = new PdfDocument();
+            // Page Options
+            PdfPage pdfPage = document.AddPage();
+            pdfPage.Height = 3508;//842
+            pdfPage.Width = 2480;
+            
+            // Get an XGraphics object for drawing
+            XGraphics graph = XGraphics.FromPdfPage(pdfPage);
+
+            // Text format
+            XStringFormat format = new XStringFormat();
+            format.LineAlignment = XLineAlignment.Near;
+            format.Alignment = XStringAlignment.Near;
+            var tf = new XTextFormatter(graph);
+
+            XFont fontParagraph = new XFont("Arial", 40, XFontStyle.Regular);
+
+            // Row elements
+            int el1_width = 150;
+            int el2_width = 516;
+            int el3_width = 316;
+            int el4_width = 682;
+            int el5_width = 416;
+
+
+            // page structure options
+            double lineHeight = 100;
+            int marginLeft = 200;
+            int marginTop = 200;
+
+            int el_height = 100;
+            int rect_height = 100;
+
+            int interLine_X_1 = 2;
+            int interLine_X_2 = 2 * interLine_X_1;
+            int interLine_X_3 = 3 * interLine_X_1;
+            int interLine_X_4 = 4 * interLine_X_1;
+            int interLine_X_5 = 5 * interLine_X_1;
+
+
+            int offSetX_1 = el1_width;
+            int offSetX_2 = el1_width + el2_width;
+            int offSetX_3 = el1_width + el2_width + el3_width;
+            int offSetX_4 = el1_width + el2_width + el3_width + el4_width;
+            int offSetX_5 = el1_width + el2_width + el3_width + el4_width + el5_width;
+
+            XSolidBrush rect_style1 = new XSolidBrush(XColors.LightGray);
+            
+            XSolidBrush rect_style2 = new XSolidBrush(XColor.FromArgb(255, 220, 189));
+
+            XPen rect_style2_pen = new XPen(XColors.Black);
+
+            XSolidBrush rect_style3 = new XSolidBrush(XColor.FromArgb(209, 207, 142));
+            int i = -1;
+            int x = -1;
+
+            var logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+            XImage image = XImage.FromFile(logoPath);
+
+            graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+            tf.DrawString(title, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            x = x + 1;
+            i = i + 1;
+            double dist_Y = lineHeight * (x + 1);
+            double dist_Y2 = dist_Y - 2;
+            int pageNo = 1;
+            int line = 0;
+            //graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (marginLeft + 20 + offSetX_4 + 2 * interLine_X_4) + el5_width, rect_height);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+            tf.DrawString("#", fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+            tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+            tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+            tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+            tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+            double totalMonthlyAmount = 0;
+
+            foreach (var month in monthlyPaymentTransactionList)
+            {
+
+                line = 0;
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                    image = XImage.FromFile(logoPath);
+
+                    graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                    tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                    tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                    tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                    tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                    tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                    tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+
+                }
+
+
+                graph.DrawRectangle(rect_style2_pen, rect_style3, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(month.monthlyPaymentTransactionDto.Month.ToString()+'/'+ month.monthlyPaymentTransactionDto.Year.ToString(), fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20, marginTop + dist_Y + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+
+                totalMonthlyAmount = 0;
+                foreach (var item in month.paymentTransactions)
+                {
+                    line = line + 1;
+                    totalMonthlyAmount = totalMonthlyAmount + (item.Amount - item.Fastfill);
+
+                    i = i + 1;
+                    x = x + 1;
+
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    if ((marginTop + dist_Y) > 3250)
+                    {
+            
+                        tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                        pageNo = pageNo + 1;
+
+                        PdfPage newPage = document.AddPage();
+                        newPage.Height = 3508;//842
+                        newPage.Width = 2480;
+                        graph = XGraphics.FromPdfPage(newPage);
+                        tf = new XTextFormatter(graph);
+                        x = -1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                        logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                        image = XImage.FromFile(logoPath);
+
+                        graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                        tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                        x = x + 1;
+                        i = i + 1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                        tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                        tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                        tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                        tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                        tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                        x = x + 1;
+                        i = i + 1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                    }
+                    //dist_Y = lineHeight * (x);
+                    //dist_Y2 = dist_Y - 2;
+
+
+                    // header della G
+                    /*if (i == 2)
+                    {
+                        graph.DrawRectangle(rect_style2, marginLeft, marginTop, pdfPage.Width - 2 * marginLeft, rect_height);
+
+                        tf.DrawString("#", fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(dateTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_1 + interLine_X_1, marginTop, el2_width, el_height), format);
+
+                        tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_2 + 2 * interLine_X_2, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(userTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_3 + 2 * interLine_X_3, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(amountTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_4 + 2 * interLine_X_4, marginTop, el1_width, el_height), format);
+
+
+                    }
+                    else */
+                    {
+
+                        //if (i % 2 == 1)
+                        //{
+                        //  graph.DrawRectangle(TextBackgroundBrush, marginLeft, lineY - 2 + marginTop, pdfPage.Width - marginLeft - marginRight, lineHeight - 2);
+                        //}
+
+                        //ELEMENT 1 - SMALL 80
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                        tf.DrawString(
+
+                            line.ToString(),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height),
+                            format);
+
+                        //ELEMENT 2 - BIG 380
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                        tf.DrawString(
+                            item.Date.ToString("yyyy-MM-dd hh:mm tt"),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height),
+                            format);
+
+
+                        //ELEMENT 3 - SMALL 80
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                        tf.DrawString(
+                            item.User.Id.ToString(),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height),
+                            format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                        tf.DrawString(
+                            item.User.FirstName,
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height),
+                            format);
+
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                        tf.DrawString(
+                            String.Format("{0:n0}", item.Amount - item.Fastfill)+ " " + currencyCode,
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height),
+                            format);
+
+                    }
+
+                }
+
+
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                }
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(String.Format("{0:n0}", totalMonthlyAmount) + " " + currencyCode, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+            }
+
+            tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+            new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            var fileName = "attachment_" + System.Guid.NewGuid().ToString() + ".pdf";
+
+            var path = Directory.GetCurrentDirectory() + @"\attachments\" + fileName;
+
+            string fileURL = "https://fastfillpro.developitech.com/attachments/" + fileName;
+
+            document.Save(path);
+
+            var response = new
+            {
+                URL = fileURL,
+            };
+
+            return Ok(response);
+        }
+
+        // POST: api/company/InsertCompany
+        [HttpPost("CompanyPump")]
+        [Authorize(Policy = Policies.Admin)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> InsertCompanyPump([FromBody] InsertCompanyPumpDto insertCompanyPumpDto)
+        {
+            if (insertCompanyPumpDto == null)
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
+            }
+
+            CompanyPump mappedCompanyPump = new CompanyPump();
+            mappedCompanyPump.CompanyId = insertCompanyPumpDto.CompanyId;
+            mappedCompanyPump.Code = insertCompanyPumpDto.Code;
+
+            bool res = await _companyServices.AddCompanyPump(mappedCompanyPump);
+            if (!res)
+            {
+                return BadRequest(ResponseMessages.ERROR_UPDATE);
+            }
+
+            return Ok(ResponseMessages.ADDED_SUCCESSFULLY);
+        }
+
+        [HttpPut("CompanyPump")]
+        [Authorize(Policy = Policies.Admin)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateCompanyPump([FromBody] InsertCompanyPumpDto insertCompanyPumpDto)
+        {
+            if (insertCompanyPumpDto == null)
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
+            }
+
+            CompanyPump mappedCompanyPump = new CompanyPump();
+            mappedCompanyPump.CompanyId = insertCompanyPumpDto.CompanyId;
+            mappedCompanyPump.Code = insertCompanyPumpDto.Code;
+            mappedCompanyPump.Id = insertCompanyPumpDto.Id;
+
+            bool res = await _companyServices.UpdateCompanyPump(mappedCompanyPump);
+            if (!res)
+            {
+                return BadRequest(ResponseMessages.ERROR_UPDATE);
+            }
+
+            return Ok(ResponseMessages.UPDATED_SUCCESSFULLY);
+        }
+
+
+        [HttpDelete("CompanyPump")]
+        [Authorize(Policy = Policies.Admin)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> DeleteCompanyPump([FromBody] InsertCompanyPumpDto insertCompanyPumpDto)
+        {
+            if (insertCompanyPumpDto == null)
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
+            }
+
+            CompanyPump mappedCompanyPump = new CompanyPump();
+            mappedCompanyPump.CompanyId = insertCompanyPumpDto.CompanyId;
+            mappedCompanyPump.Code = insertCompanyPumpDto.Code;
+            mappedCompanyPump.Id = insertCompanyPumpDto.Id;
+
+            bool res = await _companyServices.RemoveCompanyPump(mappedCompanyPump);
+            if (!res)
+            {
+                return BadRequest(ResponseMessages.ERROR_UPDATE);
+            }
+
+            return Ok(ResponseMessages.DELETED_SUCCESSFULLY);
+        }
+
+
+        // GET: api/company/FrequentlyVisitedCompanies
+        [HttpGet("GetFastFillFees")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetFastFillFees()
+        {                     
+            return Ok(100.0);
+        }
+
+
+        // GET: api/company/AllCompanies
+        [HttpGet("AllCompanies")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllCompanies(int page = 1, int pageSize = 10)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            PaginationInfo paginationInfo = new PaginationInfo();
+            IEnumerable<Company> companies = await _companyServices.GetAllCompanies(page, pageSize, paginationInfo, userId);
+            IEnumerable<Company> company = _mapper.Map<IEnumerable<Company>>(companies);
+
+            var response = new
+            {
+                Companies = company,
+                PaginationInfo = paginationInfo
+            };
+
+            return Ok(response);
+        }
+
+
+        // POST: api/company/InsertCompany
+        [HttpPost("InsertGroup")]
+        [Authorize(Policy = Policies.Admin)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> InsertGroup([FromBody] UpdateGroupDto updateGroupDto)
+        {
+            if (updateGroupDto == null)
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
+            }
+
+            Group mappedGroup = new Group();
+            mappedGroup.ArabicName = updateGroupDto.ArabicName;
+            mappedGroup.EnglishName = updateGroupDto.EnglishName;
+
+            bool res = await _companyServices.AddGroup(mappedGroup);
+            if (!res)
+            {
+                return BadRequest(ResponseMessages.ERROR_UPDATE);
+            }
+
+            return Ok(ResponseMessages.ADDED_SUCCESSFULLY);
+        }
+
+
+        // Put: api/company/UpdateCompany
+        [HttpPut("UpdateGroup")]
+        [Authorize(Policy = Policies.Admin)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateGroup([FromBody] UpdateGroupDto updateGroupDto)
+        {
+            if (updateGroupDto == null)
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
+            }
+
+            Group mappedGroup = new Group();
+            mappedGroup.Id = updateGroupDto.Id;
+            mappedGroup.ArabicName = updateGroupDto.ArabicName;
+            mappedGroup.EnglishName = updateGroupDto.EnglishName;
+
+            bool res = await _companyServices.UpdateGroup(mappedGroup);
+            if (!res)
+            {
+                return BadRequest(ResponseMessages.ERROR_UPDATE);
+            }
+
+            return Ok(ResponseMessages.UPDATED_SUCCESSFULLY);
+        }
+
+        // Delete: api/company/DeleteCompany
+        [HttpDelete("DeleteGroup/{id}")]
+        [Authorize(Policy = Policies.Admin)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> DeleteGroup(int id)
+        {
+            Group group = await _companyServices.GetGroupById(id);
+
+            if (group == null)
+            {
+                return NotFound(ResponseMessages.NOT_FOUND);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
+            }
+
+            bool res = await _companyServices.DeleteGroup(group);
+            if (!res)
+            {
+                return BadRequest(ResponseMessages.ERROR_UPDATE);
+            }
+
+            return Ok(ResponseMessages.DELETED_SUCCESSFULLY);
+        }
+
+        // GET: api/company/AllCompanies
+        [HttpGet("AllGroups")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllGroups(int page = 1, int pageSize = 10)
+        {
+            PaginationInfo paginationInfo = new PaginationInfo();
+            IEnumerable<Group> groups = await _companyServices.GetAllGroups(page, pageSize, paginationInfo);
+            IEnumerable<Group> group = _mapper.Map<IEnumerable<Group>>(groups);
+
+            var response = new
+            {
+                Groups = group,
+                PaginationInfo = paginationInfo
+            };
+
+            return Ok(response);
+        }
+
+        // GET: api/company/GroupsByName
+        [HttpGet("GroupsByName/{name}")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetGroupsByName(int page = 1, int pageSize = 10, string name = "")
+        {
+            if (name.Trim() == "")
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            PaginationInfo paginationInfo = new PaginationInfo();
+            IEnumerable<Group> groups = await _companyServices.SearchGroupsByName(page, pageSize, paginationInfo, name);
+            IEnumerable<Group> group = _mapper.Map<IEnumerable<Group>>(groups);
+
+            var response = new
+            {
+                Groups = group,
+                PaginationInfo = paginationInfo
+            };
+
+            return Ok(response);
+        }
+
+
+        // GET: api/company/AllCompanies
+        [HttpGet("AllCompaniesByGroup")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllCompaniesByGroup(bool filterByDate, DateTime filterFromDate, DateTime filterToDate, int page = 1, int pageSize = 10)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            PaginationInfo paginationInfo = new PaginationInfo();
+            Totals totals = new Totals();
+            IEnumerable<Company> companies = await _companyServices.GetAllCompaniesByGroup(page, pageSize, paginationInfo, userId, totals, filterByDate, filterFromDate, filterToDate);
+            IEnumerable<Company> company = _mapper.Map<IEnumerable<Company>>(companies);
+
+            List<CompanyWithTransactionsTotal> companiesWithTransactionsTotal = new List<CompanyWithTransactionsTotal>();
+            foreach (var c in company)
+            {
+                TotalPaymentTransaction companyTotalPaymentTransactions = await _companyServices.GetTotalCompanyPaymentTransactionsByCompanyId(userId, filterByDate, filterFromDate, filterToDate, c.Id);
+                CompanyWithTransactionsTotal companyWithTransactionsTotal = new CompanyWithTransactionsTotal();
+                
+                var s = JsonConvert.SerializeObject(c);
+                CompanyWithTransactionsTotal cwtt = JsonConvert.DeserializeObject<CompanyWithTransactionsTotal>(s);
+                cwtt.Count = companyTotalPaymentTransactions.count;
+                cwtt.Amount = companyTotalPaymentTransactions.amount;
+                companiesWithTransactionsTotal.Add(cwtt);              
+            }
+
+
+            var response = new
+            {
+                Companies = companiesWithTransactionsTotal,
+                PaginationInfo = paginationInfo,
+                TotalCount = totals.Count,
+                TotalAmount = totals.Amount
+            };
+
+            return Ok(response);
+        }
+
+
+        // GET: api/company/FrequentlyVisitedCompaniesBranches
+        [HttpGet("GetStationPaymentTransactionsByCompanyId")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetCompanyPaymentTransactionsByCompanyId(bool filterByDate, DateTime filterFromDate, DateTime filterToDate, int companyId, int page = 1, int pageSize = 10)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            PaginationInfo paginationInfo = new PaginationInfo();
+            IEnumerable<PaymentTransaction> companyPaymentTransactions = await _companyServices.GetCompanyPaymentTransactionsByCompanyId(page, pageSize, paginationInfo, companyId, filterByDate, filterFromDate, filterToDate);
+
+            var response = new
+            {
+                StationPaymentTransactions = companyPaymentTransactions,
+                PaginationInfo = paginationInfo
+            };
+
+            return Ok(response);
+        }
+
+        [HttpGet("GetMonthlyStationPaymentTransactionsByCompanyId")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetMonthlyStationPaymentTransactionsByCompanyId(int companyId, int page = 1, int pageSize = 10)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            PaginationInfo paginationInfo = new PaginationInfo();
+            IEnumerable<MonthlyPaymentTransaction> monthlyCompanyPaymentTransactions = await _companyServices.GetMonthlyCompanyPaymentTransactionsByCompanyId(page, pageSize, paginationInfo, userId, companyId);
+
+            var response = new
+            {
+                MonthlyStationPaymentTransactions = monthlyCompanyPaymentTransactions,
+                PaginationInfo = paginationInfo
+            };
+
+            return Ok(response);
+        }
+
+
+        [HttpGet("GetTotalStationPaymentTransactionsByCompanyId")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetTotalCompanyPaymentTransactionsByCompanyId(bool filterByDate, DateTime filterFromDate, DateTime filterToDate, int companyId)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            TotalPaymentTransaction companyTotalPaymentTransactions = await _companyServices.GetTotalCompanyPaymentTransactionsByCompanyId(userId, filterByDate, filterFromDate, filterToDate, companyId);
+
+            return Ok(companyTotalPaymentTransactions);
+        }
+
+        // GET: api/company/FrequentlyVisitedCompaniesBranches
+        [HttpGet("GetStationPaymentTransactionsPDFByCompanyId")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetCompanyPaymentTransactionsPDFByCompanyId(bool filterByDate, DateTime filterFromDate, DateTime filterToDate, int companyId)
+
+        {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            User user = await _userServices.GetUserById(userId, 0);
+
+            DateTime fromDate = filterFromDate;
+            DateTime toDate = filterToDate;
+
+            var paymentTransactions = await _companyServices.GetCompanyPaymentTransactionsPDFByCompanyId(userId, true, fromDate, toDate, companyId);
+
+            string title = "Transactions Details Report";
+            string dateTitle = "Date";
+            string mobileNumberTitle = "Customer NO.";
+            string userTitle = "Name";
+            string amountTitle = "Amount";
+            string currencyCode = "SDG";
+            string fromDateTitle = "From: ";
+            string toDateTitle = "To: ";
+
+            if (user.Language == 2)
+            {
+                title = " تقرير تفصيلي بالعمليات ".ArabicWithFontGlyphsToPfd();
+                dateTitle = " التاريخ ".ArabicWithFontGlyphsToPfd(); ;
+                mobileNumberTitle = " رقم العميل ".ArabicWithFontGlyphsToPfd(); ;
+                userTitle = " اسم العميل ".ArabicWithFontGlyphsToPfd(); ;
+                amountTitle = " القيمة ".ArabicWithFontGlyphsToPfd(); ;
+                currencyCode = " ج.س ".ArabicWithFontGlyphsToPfd(); ;
+                fromDateTitle = "من : ".ArabicWithFontGlyphsToPfd(); ;
+                toDateTitle = "إلى : ".ArabicWithFontGlyphsToPfd(); ;
+            }
+
+            PdfDocument document = new PdfDocument();
+            // Page Options
+            PdfPage pdfPage = document.AddPage();
+            pdfPage.Height = 3508;//842
+            pdfPage.Width = 2480;
+
+            // Get an XGraphics object for drawing
+            XGraphics graph = XGraphics.FromPdfPage(pdfPage);
+
+            // Text format
+            XStringFormat format = new XStringFormat();
+            format.LineAlignment = XLineAlignment.Near;
+            format.Alignment = XStringAlignment.Near;
+            var tf = new XTextFormatter(graph);
+
+            XFont fontParagraph = new XFont("Arial", 40, XFontStyle.Regular);
+
+            // Row elements
+            int el1_width = 150;
+            int el2_width = 516;
+            int el3_width = 316;
+            int el4_width = 682;
+            int el5_width = 416;
+
+
+            // page structure options
+            double lineHeight = 100;
+            int marginLeft = 200;
+            int marginTop = 200;
+
+            int el_height = 100;
+            int rect_height = 100;
+
+            int interLine_X_1 = 2;
+            int interLine_X_2 = 2 * interLine_X_1;
+            int interLine_X_3 = 3 * interLine_X_1;
+            int interLine_X_4 = 4 * interLine_X_1;
+            int interLine_X_5 = 5 * interLine_X_1;
+
+
+            int offSetX_1 = el1_width;
+            int offSetX_2 = el1_width + el2_width;
+            int offSetX_3 = el1_width + el2_width + el3_width;
+            int offSetX_4 = el1_width + el2_width + el3_width + el4_width;
+            int offSetX_5 = el1_width + el2_width + el3_width + el4_width + el5_width;
+
+            XSolidBrush rect_style1 = new XSolidBrush(XColors.LightGray);
+
+            XSolidBrush rect_style2 = new XSolidBrush(XColor.FromArgb(255, 220, 189));
+
+            XPen rect_style2_pen = new XPen(XColors.Black);
+
+            XSolidBrush rect_style3 = new XSolidBrush(XColor.FromArgb(209, 207, 142));
+            int i = -1;
+            int x = -1;
+
+            var logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+            XImage image = XImage.FromFile(logoPath);
+
+            graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+            tf.DrawString(title, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            x = x + 1;
+            i = i + 1;
+            double dist_Y = lineHeight * (x + 1);
+            double dist_Y2 = dist_Y - 2;
+            int pageNo = 1;
+            int line = 0;
+            //graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (marginLeft + 20 + offSetX_4 + 2 * interLine_X_4) + el5_width, rect_height);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+            tf.DrawString("#", fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+            tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+            tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+            tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+            tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+            double totalMonthlyAmount = 0;
+
+            line = 0;
+            i = i + 1;
+            x = x + 1;
+
+            dist_Y = lineHeight * (x + 1);
+            dist_Y2 = dist_Y - 2;
+
+            if ((marginTop + dist_Y) > 3250)
+            {
+                tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                pageNo = pageNo + 1;
+
+                PdfPage newPage = document.AddPage();
+                newPage.Height = 3508;//842
+                newPage.Width = 2480;
+                graph = XGraphics.FromPdfPage(newPage);
+                tf = new XTextFormatter(graph);
+                x = -1;
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+                logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                image = XImage.FromFile(logoPath);
+
+                graph.DrawImage(image, 1090, 10, 300, 300);
+
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(title, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                x = x + 1;
+                i = i + 1;
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                tf.DrawString("#", fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                x = x + 1;
+                i = i + 1;
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+
+            }
+
+
+            graph.DrawRectangle(rect_style2_pen, rect_style3, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+            tf.DrawString(fromDateTitle + " " + fromDate.ToString("dd-MM-yyyy") + " " + toDateTitle + " " + toDate.ToString("dd-MM-yyyy"), fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + dist_Y + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+
+            totalMonthlyAmount = 0;
+            foreach (var item in paymentTransactions)
+            {
+                line = line + 1;
+                totalMonthlyAmount = totalMonthlyAmount + (item.Amount - item.Fastfill);
+
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                      new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                    image = XImage.FromFile(logoPath);
+
+                    graph.DrawImage(image, 1090, 10, 300, 300);
+
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                    tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                    tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                    tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                    tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                    tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                    tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                }
+                //dist_Y = lineHeight * (x);
+                //dist_Y2 = dist_Y - 2;
+
+
+                // header della G
+                /*if (i == 2)
+                {
+                    graph.DrawRectangle(rect_style2, marginLeft, marginTop, pdfPage.Width - 2 * marginLeft, rect_height);
+
+                    tf.DrawString("#", fontParagraph, XBrushes.White,
+                                  new XRect(marginLeft, marginTop, el1_width, el_height), format);
+
+                    tf.DrawString(dateTitle, fontParagraph, XBrushes.White,
+                                  new XRect(marginLeft + offSetX_1 + interLine_X_1, marginTop, el2_width, el_height), format);
+
+                    tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.White,
+                                  new XRect(marginLeft + offSetX_2 + 2 * interLine_X_2, marginTop, el1_width, el_height), format);
+
+                    tf.DrawString(userTitle, fontParagraph, XBrushes.White,
+                                  new XRect(marginLeft + offSetX_3 + 2 * interLine_X_3, marginTop, el1_width, el_height), format);
+
+                    tf.DrawString(amountTitle, fontParagraph, XBrushes.White,
+                                  new XRect(marginLeft + offSetX_4 + 2 * interLine_X_4, marginTop, el1_width, el_height), format);
+
+
+                }
+                else */
+                {
+
+                    //if (i % 2 == 1)
+                    //{
+                    //  graph.DrawRectangle(TextBackgroundBrush, marginLeft, lineY - 2 + marginTop, pdfPage.Width - marginLeft - marginRight, lineHeight - 2);
+                    //}
+
+                    //ELEMENT 1 - SMALL 80
+                    graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                    tf.DrawString(
+
+                        line.ToString(),
+                        fontParagraph,
+                        XBrushes.Black,
+                        new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height),
+                        format);
+
+                    //ELEMENT 2 - BIG 380
+                    graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                    tf.DrawString(
+                        item.Date.ToString("yyyy-MM-dd hh:mm tt"),
+                        fontParagraph,
+                        XBrushes.Black,
+                        new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height),
+                        format);
+
+
+                    //ELEMENT 3 - SMALL 80
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                    tf.DrawString(
+                        item.User.Id.ToString(),
+                        fontParagraph,
+                        XBrushes.Black,
+                        new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height),
+                        format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                    tf.DrawString(
+                        item.User.FirstName,
+                        fontParagraph,
+                        XBrushes.Black,
+                        new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height),
+                        format);
+
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                    tf.DrawString(
+                        String.Format("{0:n0}", item.Amount - item.Fastfill) + " " + currencyCode,
+                        fontParagraph,
+                        XBrushes.Black,
+                        new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height),
+                        format);
+
+                }
+
+            }
+
+
+            i = i + 1;
+            x = x + 1;
+
+            dist_Y = lineHeight * (x + 1);
+            dist_Y2 = dist_Y - 2;
+
+
+            if ((marginTop + dist_Y) > 3250)
+            {
+                tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                pageNo = pageNo + 1;
+
+                PdfPage newPage = document.AddPage();
+                newPage.Height = 3508;//842
+                newPage.Width = 2480;
+                graph = XGraphics.FromPdfPage(newPage);
+                tf = new XTextFormatter(graph);
+                x = -1;
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+            }
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+            tf.DrawString(String.Format("{0:n0}", totalMonthlyAmount) + " " + currencyCode, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+
+
+            tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+            new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            var fileName = "attachment_" + System.Guid.NewGuid().ToString() + ".pdf";
+
+            var path = Directory.GetCurrentDirectory() + @"\attachments\" + fileName;
+
+            string fileURL = "https://fastfillpro.developitech.com/attachments/" + fileName;
+
+            document.Save(path);
+
+            var response = new
+            {
+                URL = fileURL,
+            };
+
+            return Ok(response);
+        }
+
+        [HttpPost("GetMonthlyCompanyPaymentTransactionsPDFByCompanyId")]
+        [Authorize(Policy = Policies.Company)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetMonthlyCompanyPaymentTransactionsPDFByCompanyId([FromBody] List<MonthlyPaymentTransactionDto> MonthlyPaymentTransactions, int companyId)
+        {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            User user = await _userServices.GetUserById(userId, 0);
+
+            List<MonthlyPaymentTransactionListDto> monthlyPaymentTransactionList = new List<MonthlyPaymentTransactionListDto>();
+
+            foreach (var item in MonthlyPaymentTransactions)
+            {
+                MonthlyPaymentTransactionListDto monthlyPaymentTransactionListDto = new MonthlyPaymentTransactionListDto();
+                monthlyPaymentTransactionListDto.monthlyPaymentTransactionDto = item;
+
+                int mDays = DateTime.DaysInMonth(item.Year, item.Month);
+                DateTime fromDate = new DateTime(item.Year, item.Month, 1);
+                DateTime toDate = new DateTime(item.Year, item.Month, mDays);
+
+                monthlyPaymentTransactionListDto.paymentTransactions = await _companyServices.GetCompanyPaymentTransactionsPDFByCompanyId(userId, true, fromDate, toDate, companyId);
+                if (monthlyPaymentTransactionListDto.paymentTransactions.Count() > 0)
+                    monthlyPaymentTransactionList.Add(monthlyPaymentTransactionListDto);
+            }
+
+            string title = "Transactions Details Report";
+            string dateTitle = "Date";
+            string mobileNumberTitle = "Customer NO.";
+            string userTitle = "Name";
+            string amountTitle = "Amount";
+            string currencyCode = "SDG";
+
+            if (user.Language == 2)
+            {
+                title = " تقرير تفصيلي بالعمليات ".ArabicWithFontGlyphsToPfd();
+                dateTitle = " التاريخ ".ArabicWithFontGlyphsToPfd();
+                mobileNumberTitle = " رقم العميل ".ArabicWithFontGlyphsToPfd();
+                userTitle = " اسم العميل ".ArabicWithFontGlyphsToPfd();
+                amountTitle = " القيمة ".ArabicWithFontGlyphsToPfd();
+                currencyCode = " ج.س ".ArabicWithFontGlyphsToPfd();
+            }
+
+            PdfDocument document = new PdfDocument();
+            // Page Options
+            PdfPage pdfPage = document.AddPage();
+            pdfPage.Height = 3508;//842
+            pdfPage.Width = 2480;
+
+            // Get an XGraphics object for drawing
+            XGraphics graph = XGraphics.FromPdfPage(pdfPage);
+
+            // Text format
+            XStringFormat format = new XStringFormat();
+            format.LineAlignment = XLineAlignment.Near;
+            format.Alignment = XStringAlignment.Near;
+            var tf = new XTextFormatter(graph);
+
+            XFont fontParagraph = new XFont("Arial", 40, XFontStyle.Regular);
+
+            // Row elements
+            int el1_width = 150;
+            int el2_width = 516;
+            int el3_width = 316;
+            int el4_width = 682;
+            int el5_width = 416;
+
+
+            // page structure options
+            double lineHeight = 100;
+            int marginLeft = 200;
+            int marginTop = 200;
+
+            int el_height = 100;
+            int rect_height = 100;
+
+            int interLine_X_1 = 2;
+            int interLine_X_2 = 2 * interLine_X_1;
+            int interLine_X_3 = 3 * interLine_X_1;
+            int interLine_X_4 = 4 * interLine_X_1;
+            int interLine_X_5 = 5 * interLine_X_1;
+
+
+            int offSetX_1 = el1_width;
+            int offSetX_2 = el1_width + el2_width;
+            int offSetX_3 = el1_width + el2_width + el3_width;
+            int offSetX_4 = el1_width + el2_width + el3_width + el4_width;
+            int offSetX_5 = el1_width + el2_width + el3_width + el4_width + el5_width;
+
+            XSolidBrush rect_style1 = new XSolidBrush(XColors.LightGray);
+
+            XSolidBrush rect_style2 = new XSolidBrush(XColor.FromArgb(255, 220, 189));
+
+            XPen rect_style2_pen = new XPen(XColors.Black);
+
+            XSolidBrush rect_style3 = new XSolidBrush(XColor.FromArgb(209, 207, 142));
+            int i = -1;
+            int x = -1;
+
+            var logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+            XImage image = XImage.FromFile(logoPath);
+
+            graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+            tf.DrawString(title, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            x = x + 1;
+            i = i + 1;
+            double dist_Y = lineHeight * (x + 1);
+            double dist_Y2 = dist_Y - 2;
+            int pageNo = 1;
+            int line = 0;
+            //graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (marginLeft + 20 + offSetX_4 + 2 * interLine_X_4) + el5_width, rect_height);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+            tf.DrawString("#", fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+            tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+            tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+            tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+            graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+            tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+            double totalMonthlyAmount = 0;
+
+            foreach (var month in monthlyPaymentTransactionList)
+            {
+
+                line = 0;
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                    image = XImage.FromFile(logoPath);
+
+                    graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                    tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                    tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                    tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                    tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                    tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                    graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                    tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                    x = x + 1;
+                    i = i + 1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+
+                }
+
+
+                graph.DrawRectangle(rect_style2_pen, rect_style3, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(month.monthlyPaymentTransactionDto.Month.ToString() + '/' + month.monthlyPaymentTransactionDto.Year.ToString(), fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20, marginTop + dist_Y + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+
+                totalMonthlyAmount = 0;
+                foreach (var item in month.paymentTransactions)
+                {
+                    line = line + 1;
+                    totalMonthlyAmount = totalMonthlyAmount + (item.Amount - item.Fastfill);
+
+                    i = i + 1;
+                    x = x + 1;
+
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                    if ((marginTop + dist_Y) > 3250)
+                    {
+
+                        tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                          new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                        pageNo = pageNo + 1;
+
+                        PdfPage newPage = document.AddPage();
+                        newPage.Height = 3508;//842
+                        newPage.Width = 2480;
+                        graph = XGraphics.FromPdfPage(newPage);
+                        tf = new XTextFormatter(graph);
+                        x = -1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                        logoPath = Directory.GetCurrentDirectory() + @"\attachments\logo.png";
+                        image = XImage.FromFile(logoPath);
+
+                        graph.DrawImage(image, 1140, 10, 200, 200);
+
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                        tf.DrawString(title, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20, marginTop + 10, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                        x = x + 1;
+                        i = i + 1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el5_width, rect_height);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                        tf.DrawString("#", fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                        tf.DrawString(dateTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                        tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                        tf.DrawString(userTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height), format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                        tf.DrawString(amountTitle, fontParagraph, XBrushes.Black,
+                                      new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+                        x = x + 1;
+                        i = i + 1;
+                        dist_Y = lineHeight * (x + 1);
+                        dist_Y2 = dist_Y - 2;
+
+                    }
+                    //dist_Y = lineHeight * (x);
+                    //dist_Y2 = dist_Y - 2;
+
+
+                    // header della G
+                    /*if (i == 2)
+                    {
+                        graph.DrawRectangle(rect_style2, marginLeft, marginTop, pdfPage.Width - 2 * marginLeft, rect_height);
+
+                        tf.DrawString("#", fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(dateTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_1 + interLine_X_1, marginTop, el2_width, el_height), format);
+
+                        tf.DrawString(mobileNumberTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_2 + 2 * interLine_X_2, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(userTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_3 + 2 * interLine_X_3, marginTop, el1_width, el_height), format);
+
+                        tf.DrawString(amountTitle, fontParagraph, XBrushes.White,
+                                      new XRect(marginLeft + offSetX_4 + 2 * interLine_X_4, marginTop, el1_width, el_height), format);
+
+
+                    }
+                    else */
+                    {
+
+                        //if (i % 2 == 1)
+                        //{
+                        //  graph.DrawRectangle(TextBackgroundBrush, marginLeft, lineY - 2 + marginTop, pdfPage.Width - marginLeft - marginRight, lineHeight - 2);
+                        //}
+
+                        //ELEMENT 1 - SMALL 80
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft, marginTop + dist_Y, el1_width, rect_height);
+                        tf.DrawString(
+
+                            line.ToString(),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20, marginTop + dist_Y + 10, el1_width, el_height),
+                            format);
+
+                        //ELEMENT 2 - BIG 380
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_1 + interLine_X_1, dist_Y + marginTop, el2_width, rect_height);
+                        tf.DrawString(
+                            item.Date.ToString("yyyy-MM-dd hh:mm tt"),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_1 + interLine_X_1, marginTop + dist_Y + 10, el2_width, el_height),
+                            format);
+
+
+                        //ELEMENT 3 - SMALL 80
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_2 + interLine_X_2, dist_Y + marginTop, el3_width, rect_height);
+                        tf.DrawString(
+                            item.User.Id.ToString(),
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_2 + 2 * interLine_X_2, marginTop + dist_Y + 10, el3_width, el_height),
+                            format);
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_3 + interLine_X_3, dist_Y + marginTop, el4_width, rect_height);
+                        tf.DrawString(
+                            item.User.FirstName,
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_3 + 2 * interLine_X_3, marginTop + dist_Y + 10, el4_width, el_height),
+                            format);
+
+
+                        graph.DrawRectangle(rect_style2_pen, rect_style1, marginLeft + offSetX_4 + interLine_X_4, dist_Y + marginTop, el5_width, rect_height);
+                        tf.DrawString(
+                            String.Format("{0:n0}", item.Amount - item.Fastfill) + " " + currencyCode,
+                            fontParagraph,
+                            XBrushes.Black,
+                            new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height),
+                            format);
+
+                    }
+
+                }
+
+
+                i = i + 1;
+                x = x + 1;
+
+                dist_Y = lineHeight * (x + 1);
+                dist_Y2 = dist_Y - 2;
+
+
+                if ((marginTop + dist_Y) > 3250)
+                {
+                    tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+                                  new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+                    pageNo = pageNo + 1;
+
+                    PdfPage newPage = document.AddPage();
+                    newPage.Height = 3508;//842
+                    newPage.Width = 2480;
+                    graph = XGraphics.FromPdfPage(newPage);
+                    tf = new XTextFormatter(graph);
+                    x = -1;
+                    dist_Y = lineHeight * (x + 1);
+                    dist_Y2 = dist_Y - 2;
+
+                }
+
+                graph.DrawRectangle(rect_style2_pen, rect_style2, marginLeft, marginTop + dist_Y, (pdfPage.Width - 2 * marginLeft) + 8, rect_height);
+
+                tf.DrawString(String.Format("{0:n0}", totalMonthlyAmount) + " " + currencyCode, fontParagraph, XBrushes.Black,
+                              new XRect(marginLeft + 20 + offSetX_4 + 2 * interLine_X_4, marginTop + dist_Y + 10, el5_width, el_height), format);
+
+
+            }
+
+            tf.DrawString(pageNo.ToString(), fontParagraph, XBrushes.Black,
+            new XRect(marginLeft, pdfPage.Height - 100, pdfPage.Width - 2 * marginLeft, el_height), format);
+
+            var fileName = "attachment_" + System.Guid.NewGuid().ToString() + ".pdf";
+
+            var path = Directory.GetCurrentDirectory() + @"\attachments\" + fileName;
+
+            string fileURL = "https://fastfillpro.developitech.com/attachments/" + fileName;
+
+            document.Save(path);
+
+            var response = new
+            {
+                URL = fileURL,
+            };
+
+            return Ok(response);
+        }
+
     }
 }

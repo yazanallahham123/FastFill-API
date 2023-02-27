@@ -18,9 +18,11 @@ namespace FastFill_API
         public int UserId { get; set; }
         public string BankName { get; set; }
         public string CardNumber { get; set; }
+        public string ExpiryDate { get; set; }
         [JsonIgnore]
         [IgnoreDataMember]
         public virtual User User { get; set; }
+        
 
 
     }

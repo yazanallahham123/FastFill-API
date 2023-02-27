@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 
 namespace FastFill_API.Web.Dto
 {
-    public class AddEditBankCardDto
+    public class PumpAgentDto
     {
-        public string BankName { get; set; }
-        public string CardNumber { get; set; }
+        public int UserId { get; set; }
+        public int PumpId { get; set; }
+
     }
 }

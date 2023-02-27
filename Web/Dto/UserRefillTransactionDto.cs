@@ -12,5 +12,6 @@ namespace FastFill_API.Web.Dto
         public DateTime Date { get; set; }
         public double Amount { get; set; }
         public bool status { get; set; }
+        public int RefillSourceId { get; set; }
     }
 }

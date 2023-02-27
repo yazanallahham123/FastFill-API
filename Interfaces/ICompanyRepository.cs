@@ -1,4 +1,5 @@
-﻿using FastFill_API.Web.Model;
+﻿using FastFill_API.Web.Dto;
+using FastFill_API.Web.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,5 +53,30 @@ namespace FastFill_API.Interfaces
         public Task<bool> RemoveUserFromCompany(int userId, int companyId);
 
         public Task<List<PaymentTransaction>> GetCompanyTransactions(int? companyId, bool filterByDate, DateTime filterFromDate, DateTime filterToDate);
+
+        public Task<List<MonthlyPaymentTransaction>> GetMonthlyCompanyTransactions(int? companyId);
+
+        public Task<TotalPaymentTransaction> GetTotalCompanyPaymentTransactions(int? companyId, bool filterByDate, DateTime filterFromDate, DateTime filterToDate);
+
+        public Task<int> GetCompanisCount();
+
+        public Task<bool> InsertCompanyPump(CompanyPump companyPump);
+        public Task<bool> UpdateCompanyPump(CompanyPump companyPump);
+        public Task<bool> DeleteCompanyPump(CompanyPump companyPump);
+
+
+        public Task<bool> InsertGroup(Group group);
+        public Task<bool> UpdateGroup(Group group);
+        public Task<bool> DeleteGroup(Group group);
+
+        public Task<Group> GetGroupById(int id);
+
+        public Task<List<Group>> GetAllGroups();
+        public Task<List<Group>> SearchGroupsByName(string name);
+
+        public Task<List<CompanyWithFavorite>> GetAllCompaniesByGroup(int userId);
+
+
+
     }
 }

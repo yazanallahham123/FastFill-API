@@ -13,6 +13,9 @@ namespace FastFill_API.Data
         public const string User = "3";
         public const string Company = "4";
         public const string Sybertech = "100";
+        public const string Bushrapay = "101";
+        public const string CompanyAgent = "5";
+        public const string Faisal = "102";
 
         public static AuthorizationPolicy AdminPolicy()
         {
@@ -37,6 +40,22 @@ namespace FastFill_API.Data
         {
             return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(Sybertech).Build();
         }
+
+        public static AuthorizationPolicy BushraPayPolicy()
+        {
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(Bushrapay).Build();
+        }
+
+        public static AuthorizationPolicy CompanyAgentPolicy()
+        {
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(CompanyAgent).Build();
+        }
+
+        public static AuthorizationPolicy FaisalPolicy()
+        {
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireRole(Faisal).Build();
+        }
+
 
     }
 }

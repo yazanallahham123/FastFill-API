@@ -20,7 +20,8 @@ namespace FastFill_API.Web.Profile
             CreateMap<Company, UpdateCompanyDto>().ReverseMap();
             CreateMap<Notification, NotificationDto>().ReverseMap();
             CreateMap<PaymentTransaction, PaymentTransactionDto>().ReverseMap();
-            CreateMap<BankCard, AddEditBankCardDto>().ReverseMap();
+            CreateMap<BankCard, AddBankCardDto>().ReverseMap();
+            CreateMap<BankCard, EditBankCardDto>().ReverseMap();
             CreateMap<UserRefillTransaction, UserRefillTransactionDto>().ReverseMap();
         }
     }

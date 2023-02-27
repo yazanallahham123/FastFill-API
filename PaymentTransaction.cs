@@ -20,7 +20,13 @@ namespace FastFill_API
         public double Amount { get; set; }
         public double Fastfill { get; set; }
         public bool Status { get; set; }
+        public bool? Cleared { get; set; }
         public virtual User User { get; set; }
         public virtual Company Company { get; set; }
+        public int DailyId { get; set; }
+        public int? CompanyPumpId { get; set; }
+
+        public virtual CompanyPump? CompanyPump { get; set; }
+
     }
 }

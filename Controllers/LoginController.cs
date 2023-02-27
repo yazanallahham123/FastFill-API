@@ -55,7 +55,7 @@ namespace FastFill_API.Controllers
                 return BadRequest(LoginErrorMessages.ModelStateParser(ModelState));
             }
 
-            User user = await _userServices.GetByMobileNumber(login.mobileNumber);
+            User user = await _userServices.GetByMobileNumber(login.mobileNumber, 0);
             
             if (user == null)
             {
@@ -83,5 +83,40 @@ namespace FastFill_API.Controllers
 
             return Ok(response);
         }
+
+        // POST: api/user
+        [HttpGet("ShowSignupInStationApp")]
+        public async Task<IActionResult> ShowSignupInStationApp()
+        {
+            TempSetting res = await _userServices.ShowSignupInStationApp();
+
+            return Ok(res.ShowSignupInStationApp);
+        }
+
+        // GET: api/user/ByPhone
+        [HttpGet("ByPhone/{mobileNumber}")]
+        public async Task<IActionResult> GetUserByMobileNumber(string mobileNumber)
+        {
+            if (mobileNumber == null)
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+
+            if (mobileNumber.Trim() == "")
+            {
+                return BadRequest(ResponseMessages.PUSH_EMPTY_VALUE);
+            }
+            User user = await _userServices.GetByMobileNumber(mobileNumber, 0);
+
+            if (user == null)
+            {
+                return NotFound(ResponseMessages.NOT_FOUND);
+            }
+
+            return Ok(_mapper.Map<User>(user));
+        }
+
+
+
     }
 }

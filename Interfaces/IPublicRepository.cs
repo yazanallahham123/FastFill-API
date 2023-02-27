@@ -10,5 +10,7 @@ namespace FastFill_API.Interfaces
         IUserRepository GetUserRepository { get; }
 
         ICompanyRepository GetCompanyRepository { get; }
+
+        IDashboardRepository GetDashboardRepository { get; }
     }
 }

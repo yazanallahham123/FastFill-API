@@ -1,5 +1,5 @@
 ﻿using FastFill_API.Interfaces;
-
+using FastFill_API.Migrations;
 using FastFill_API.Web.Dto;
 using FastFill_API.Web.Utils;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace FastFill_API.Repositories
 {
-    public class UserRepository: IUserRepository
+    public class UserRepository : IUserRepository
     {
         private readonly FastFillDBContext _context;
 
@@ -19,14 +19,35 @@ namespace FastFill_API.Repositories
             _context = context;
         }
 
-        public async Task<User> GetById(int id)
+        public async Task<User> GetById(int id, int? roleId)
         {
-            return await _context.Users.FindAsync(id);
+            if (roleId != null)
+            {
+                if (roleId > 0)
+                {
+                    return await _context.Users.Where(x => x.Id == id && x.RoleId == roleId).FirstOrDefaultAsync();
+                }
+                else
+                    return await _context.Users.FindAsync(id);
+            }
+            else
+                return await _context.Users.FindAsync(id);
         }
 
-        public async Task<User> GetByMobileNumber(string mobileNumber)
+        public async Task<User> GetByMobileNumber(string mobileNumber, int? roleId)
         {
-            return await _context.Users.Where(u => u.MobileNumber == mobileNumber).Include(x => x.Company).FirstOrDefaultAsync();
+
+            if (roleId != null)
+            {
+                if (roleId > 0)
+                {
+                    return await _context.Users.Where(u => u.MobileNumber == mobileNumber && u.RoleId == roleId).Include(x => x.Company).Include(x => x.Group).FirstOrDefaultAsync();
+                }
+                else
+                    return await _context.Users.Where(u => u.MobileNumber == mobileNumber).Include(x => x.Company).Include(x => x.Group).FirstOrDefaultAsync();
+            }
+            else
+                return await _context.Users.Where(u => u.MobileNumber == mobileNumber).Include(x => x.Company).Include(x => x.Group).FirstOrDefaultAsync();
         }
 
         public async Task<bool> Insert(User user)
@@ -82,6 +103,12 @@ namespace FastFill_API.Repositories
         {
             return await _context.Users.Where(u => u.RoleId == (int)RoleType.Company && u.CompanyId == companyId).ToListAsync();
         }
+
+        public async Task<List<User>> GetCompanyAgentUsers(int companyId)
+        {
+            return await _context.Users.Where(u => u.RoleId == (int)RoleType.CompanyAgent && u.CompanyId == companyId).ToListAsync();
+        }
+
         public async Task<List<User>> GetAdmins()
         {
             return await _context.Users.Where(u => u.RoleId == (int)RoleType.Admin).ToListAsync();
@@ -105,7 +132,7 @@ namespace FastFill_API.Repositories
                 u.Username = name;
                 u.ImageURL = imageURL;
 
-                return await Update(u);                
+                return await Update(u);
             }
             else
                 return false;
@@ -142,6 +169,9 @@ namespace FastFill_API.Repositories
         {
             if (paymentTransaction != null)
             {
+                List<PaymentTransaction> dailyTransactions = await _context.PaymentTransactions.Where((n) => n.Date.Date == DateTime.Now.Date.Date && n.CompanyId == paymentTransaction.CompanyId).ToListAsync();
+                int dailyId = dailyTransactions.Count + 1;
+                paymentTransaction.DailyId = dailyId;
                 _context.PaymentTransactions.Add(paymentTransaction);
                 await _context.SaveChangesAsync();
                 return true;
@@ -153,16 +183,16 @@ namespace FastFill_API.Repositories
 
         public async Task<List<Notification>> GetNotifications(int userId)
         {
-            User user = await GetById(userId);
+            User user = await GetById(userId, 0);
             if (user.RoleId == 4)
-                return await _context.Notifications.Where((n) => n.CompanyId == user.CompanyId && ((n.Cleared??false) == false)).OrderByDescending(x => x.Id).ToListAsync();
+                return await _context.Notifications.Where((n) => (n.UserId == userId || n.CompanyId == user.CompanyId) && ((n.Cleared ?? false) == false && n.Content.Trim() != "")).OrderByDescending(x => x.Id).ToListAsync();
             else
-                return await _context.Notifications.Where((n) => n.UserId == userId && ((n.Cleared??false) == false)).OrderByDescending(x => x.Id).ToListAsync();
+                return await _context.Notifications.Where((n) => n.UserId == userId && ((n.Cleared ?? false) == false) && n.Content.Trim() != "").OrderByDescending(x => x.Id).ToListAsync();
         }
 
         public async Task<List<PaymentTransaction>> GetPaymentTransactions(int userId)
         {
-            return await _context.PaymentTransactions.Where((n) => n.UserId == userId).Include(x => x.Company).OrderByDescending(x => x.Date).ToListAsync();
+            return await _context.PaymentTransactions.Where((n) => n.UserId == userId && ((n.Cleared ?? false) == false)).Include(x => x.Company).OrderByDescending(x => x.Date).ThenByDescending((xx) => xx.DailyId).ToListAsync();
         }
 
         public async Task<UserCredit> TopUpUserCredit(UserCredit userCredit)
@@ -190,6 +220,18 @@ namespace FastFill_API.Repositories
                 return false;
         }
 
+        public async Task<bool> UpdateBankCard(BankCard bankCard)
+        {
+            if (bankCard != null)
+            {
+                _context.BankCards.Update(bankCard);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            else
+                return false;
+        }
+
         public async Task<List<BankCard>> GetBankCards(int userId)
         {
             return await _context.BankCards.Where((n) => n.UserId == userId).ToListAsync();
@@ -208,7 +250,7 @@ namespace FastFill_API.Repositories
                 await _context.SaveChangesAsync();
                 return true;
             }
-            catch 
+            catch
             {
                 return false;
             }
@@ -300,6 +342,22 @@ namespace FastFill_API.Repositories
             }
         }
 
+        public async Task<bool> ClearTransactions(int userId)
+        {
+            try
+            {
+                var sql = $"UPDATE PaymentTransactions SET Cleared = 1 WHERE UserId = " + userId.ToString();
+
+                await _context.Database.ExecuteSqlRawAsync(sql);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
         public async Task<bool> UpdateUserRefillStatus(string transactionId, bool status)
         {
             UserRefillTransaction? urt = await _context.UserRefillTransactions.Where((u) => u.transactionId == transactionId).FirstOrDefaultAsync();
@@ -317,6 +375,265 @@ namespace FastFill_API.Repositories
                 return false;
         }
 
+        public async Task<List<User>> GetCompaniesUsers()
+        {
+            return await _context.Users.Include(c => c.Company).Where(u => u.RoleId == (int)RoleType.Company).ToListAsync();
+        }
 
+        public async Task<TempSetting> ShowSignupInStationApp()
+        {
+            return await _context.TempSettings.FirstOrDefaultAsync();
+        }
+
+        public async Task<int> GetUsersCount()
+        {
+            return await _context.Users.CountAsync();
+        }
+
+        public async Task<bool> RemoveAccount(int userId)
+        {
+            try
+            {
+                User u = await GetById(userId, 0);
+                _context.Users.Remove(u);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await LogError(0, "1", ex.Message, ex.InnerException?.Message ?? "", "", "RemoveAccount");
+                return false;
+            }
+        }
+
+        public async Task<bool> Logout(int userId)
+        {
+            try
+            {
+                User u = await GetById(userId, 0);
+                u.FirebaseToken = "";
+                _context.Users.Update(u);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> AssignPumpsAgents(int companyId, List<PumpAgentDto> pumpsAgents)
+        {
+            try
+            {
+                List<CompanyAgentPump> ap = _context.CompanyAgentPumps.Where(d => d.Agent.CompanyId == companyId).ToList();
+                _context.CompanyAgentPumps.RemoveRange(ap);
+                await _context.SaveChangesAsync();
+                List<CompanyAgentPump> new_ap = new List<CompanyAgentPump>();
+                foreach (var item in pumpsAgents)
+                {
+                    CompanyAgentPump agp = new CompanyAgentPump();
+                    agp.AgentId = item.UserId;
+                    agp.PumpId = item.PumpId;
+                    new_ap.Add(agp);
+                }
+
+                _context.CompanyAgentPumps.AddRange(new_ap);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        public async Task<List<CompanyPump>> GetCompanyPumps(int companyId)
+        {
+            return await _context.CompanyPumps.Where(u => u.CompanyId == companyId).ToListAsync();
+        }
+
+        public async Task<List<CompanyAgentPump>> GetPumpsAgents(int companyId)
+        {
+            return await _context.CompanyAgentPumps.Where(u => u.Pump.CompanyId == companyId).ToListAsync();
+        }
+
+        public async Task<List<CompanyPumpState>> GetActivePumps(int companyId)
+        {
+            return await _context.CompanyPumpsState.Where(u => u.CompanyAgentPump.Pump.CompanyId == companyId && u.IsOpen == true).
+                Include(d => d.CompanyAgentPump).
+                Include(d => d.CompanyAgentPump.Pump).
+                ToListAsync();
+        }
+
+        public async Task<bool> InsertCompanyPump(CompanyPump companyPump)
+        {
+            try
+            {
+                _context.CompanyPumps.Add(companyPump);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateCompanyPump(CompanyPump companyPump)
+        {
+            try
+            {
+                _context.CompanyPumps.Update(companyPump);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteCompanyPump(CompanyPump companyPump)
+        {
+            try
+            {
+                _context.CompanyPumps.Remove(companyPump);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+
+        public async Task<List<String>> GetAllFireBaseTokens()
+        {
+            return _context.Users.Where(d => d.FirebaseToken != null && d.FirebaseToken != "" && d.RoleId == (int)RoleType.User).Select(d => d.FirebaseToken).ToList();
+        }
+
+
+        public async Task<bool> CheckPaymentForBushrapay(string transactionId)
+        {
+            return await _context.UserRefillTransactions.AnyAsync((x) => x.transactionId == transactionId && x.RefillSourceId == (int)RefillSource.Bushrapay);
+        }
+
+        public async Task<bool> CheckPaymentForFaisal(string transactionId)
+        {
+            return await _context.UserRefillTransactions.AnyAsync((x) => x.transactionId == transactionId && x.RefillSourceId == (int)RefillSource.Faisal);
+        }
+
+        public async Task<List<UserRefill>> GetRefills(string? mobileNumber, DateTime? fromDate, DateTime? toDate, bool? status, string? transactionId,
+            List<int>? refillSources)
+        {
+            List<UserRefill> userRefills = new List<UserRefill>();
+
+            List<UserRefillTransaction> refills = _context.UserRefillTransactions.Include(u => u.User).Where(d =>
+            ((mobileNumber != null) ? (d.User.MobileNumber == mobileNumber) : (d.User.MobileNumber == d.User.MobileNumber)) &&
+            ((fromDate != null) ? (d.Date.Date >= Convert.ToDateTime(fromDate).Date) : (d.Date == d.Date)) &&
+            ((toDate != null) ? (d.Date.Date <= Convert.ToDateTime(toDate).Date) : (d.Date == d.Date)) &&
+            ((status != null) ? (d.status == status) : (d.status == d.status)) &&
+            ((transactionId != null) ? (d.transactionId == transactionId) : (d.transactionId == d.transactionId))
+             &&
+            ((refillSources.Count == 0) || ((refillSources != null) ? (refillSources.Contains(d.RefillSourceId ?? -1)) : (d.RefillSourceId == d.RefillSourceId)))
+
+            ).ToList();
+
+            refills.ForEach((x) =>
+            {
+                UserRefill userRefill = new UserRefill();
+                userRefill.Id = x.Id;
+                userRefill.mobileNumber = x.User.MobileNumber;
+                userRefill.userId = x.UserId;
+                userRefill.date = x.Date;
+                userRefill.transactionId = x.transactionId;
+                userRefill.amount = x.Amount;
+                userRefill.status = x.status;
+                userRefill.sourceId = x.RefillSourceId;
+                userRefill.source = (x.RefillSourceId == (int)RefillSource.Manual) ? "Manual" :
+                (x.RefillSourceId == (int)RefillSource.Sybertech) ? "Sybertech Gateway" :
+                (x.RefillSourceId == (int)RefillSource.Bushrapay) ? "Bushrapay" :
+                (x.RefillSourceId == (int)RefillSource.BOK) ? "BOK" :
+                (x.RefillSourceId == (int)RefillSource.Faisal) ? "Faisal Bank" :
+                (x.RefillSourceId == (int)RefillSource.SybertechApp) ? "Sybertech App" : "Unknown";
+
+                userRefills.Add(userRefill);
+            });
+
+            return userRefills;
+        }
+
+        public async Task<List<PaymentTransaction>> GetPaymentTransactionResults(string? mobileNumber, DateTime? fromDate, DateTime? toDate,
+            List<int>? companies)
+        {
+
+            List<PaymentTransaction> paymentTransactionResults = _context.PaymentTransactions.Include(u => u.User).Include(c => c.Company).Where(d =>
+            ((mobileNumber != null) ? (d.User.MobileNumber == mobileNumber) : (d.User.MobileNumber == d.User.MobileNumber)) &&
+            ((fromDate != null) ? (d.Date.Date >= Convert.ToDateTime(fromDate).Date) : (d.Date == d.Date)) &&
+            ((toDate != null) ? (d.Date.Date <= Convert.ToDateTime(toDate).Date) : (d.Date == d.Date))
+             &&
+            ((companies.Count == 0) || ((companies != null) ? (companies.Contains(d.CompanyId)) : (d.CompanyId == d.CompanyId)))
+
+            ).ToList();
+
+            return paymentTransactionResults;
+        }
+
+
+        public async Task<bool> GenerateOtp(Otp otp)
+        {
+            if (otp != null)
+            {
+                _context.Otps.Add(otp);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            else
+                return false;
+
+        }
+
+        public async Task<bool> verifyOtp(string registerId, string otpCode)
+        {
+            try
+            {
+                bool res = await _context.Otps.AnyAsync((x) => x.otpCode == otpCode && x.registerId == registerId);
+                if (res)
+                {
+
+                    Otp otp = await _context.Otps.Where(x => x.registerId == registerId && x.otpCode == otpCode).FirstOrDefaultAsync();
+                    otp.status = true;
+
+                    _context.Attach(otp);
+                    _context.Otps.Update(otp);
+                    await _context.SaveChangesAsync();
+                    return true;
+                }
+                else
+                    return false;
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+
+        }
+
+        public async Task<List<Company>> getAllCompanies()
+        {
+            try
+            {
+                List<Company> companies = await _context.Companies.ToListAsync();
+                return companies;
+            }
+            catch (Exception e)
+            {
+                List<Company> companies = new List<Company>();
+                return companies;
+            }
+
+        }
     }
 }
